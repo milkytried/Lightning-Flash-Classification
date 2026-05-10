@@ -69,26 +69,26 @@ class HDF5Dataset(Dataset):
         Returns:
             (torch.Tensor, torch.Tensor): (image, label)
         """
-        # Get global index in HDF5 file
-        global_idx = self.split_indices[idx]
-        
-        # Lazy load from disk
-        with h5py.File(self.hdf5_path, 'r') as f:
-            image = f['images'][global_idx]
-            label = f['labels'][global_idx]
-        
-        # Convert to float32
-        image = image.astype(np.float32)
-        label = np.float32(label)
-        
-        # Apply augmentation (CPU)
-        if self.augment:
+        try:
+            # Get global index in HDF5 file
+            global_idx = self.split_indices[idx]
+            
+            # Lazy load from disk
+            with h5py.File(self.hdf5_path, 'r') as f:
+                image = f['images'][global_idx].copy()  # Copy to prevent issues
+                label = f['labels'][global_idx]
+            
+            # Convert to float32
+            image = image.astype(np.float32)
+            label = np.float32(label)
+            
+            # Apply consistent augmentation pipeline
             augmented = self.transform(image=image)
             image = augmented['image']
-        else:
-            image = torch.from_numpy(image).float()
-        
-        return image, torch.tensor(label, dtype=torch.float32)
+            
+            return image, torch.tensor(label, dtype=torch.float32)
+        except Exception as e:
+            raise RuntimeError(f"Error loading sample {idx}: {str(e)}")
 
 
 def create_data_loaders(hdf5_path, batch_size=16, num_workers=0):

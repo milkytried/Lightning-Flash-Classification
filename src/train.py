@@ -73,15 +73,34 @@ def validate(model, val_loader, criterion, device):
     return avg_loss, all_preds, all_labels
 
 
+def validate_config(config):
+    """Validate configuration dictionary."""
+    required_keys = {
+        'data': ['processed_dataset'],
+        'train': ['batch_size', 'max_epochs', 'learning_rate'],
+        'model': ['num_input_channels'],
+        'paths': ['models_dir', 'results_dir']
+    }
+    
+    for section, keys in required_keys.items():
+        if section not in config:
+            raise ValueError(f"Missing config section: {section}")
+        for key in keys:
+            if key not in config[section]:
+                raise ValueError(f"Missing config key: {section}.{key}")
+
+
 def train_full(config_path='config.yaml'):
     """Full training pipeline."""
     
     # Set seed for reproducibility
     set_seed(42)
     
-    # Load config
+    # Load and validate config
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
+    
+    validate_config(config)
     
     # Create output directories
     Path(config['paths']['models_dir']).mkdir(parents=True, exist_ok=True)

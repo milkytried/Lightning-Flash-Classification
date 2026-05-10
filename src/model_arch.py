@@ -30,7 +30,7 @@ class LightningResNet50(nn.Module):
         super(LightningResNet50, self).__init__()
         
         # Load pretrained ResNet-50
-        self.backbone = models.resnet50(pretrained=True)
+        self.backbone = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
         
         # Adapt first conv layer for multi-channel input
         if num_input_channels != 3:

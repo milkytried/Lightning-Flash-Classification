@@ -28,8 +28,17 @@ def compute_metrics(predictions, labels, threshold=0.5):
     """
     preds_binary = (predictions > threshold).astype(int)
     
-    # Compute metrics
-    tn, fp, fn, tp = confusion_matrix(labels, preds_binary).ravel()
+    # Compute metrics with proper handling of edge cases
+    cm = confusion_matrix(labels, preds_binary, labels=[0, 1])
+    
+    # Handle edge case where only one class is present
+    if cm.shape != (2, 2):
+        # Pad to 2x2 if needed
+        cm_padded = np.zeros((2, 2), dtype=int)
+        cm_padded[:cm.shape[0], :cm.shape[1]] = cm
+        cm = cm_padded
+    
+    tn, fp, fn, tp = cm.ravel()
     
     accuracy = accuracy_score(labels, preds_binary)
     precision = precision_score(labels, preds_binary, zero_division=0)

@@ -72,7 +72,9 @@ class LightningPredictor:
         
         # Predict
         with torch.no_grad():
-            prob = self.model(image_tensor).squeeze().item()
+            output = self.model(image_tensor)
+            # Remove batch dimension only (axis 0)
+            prob = output.squeeze(dim=0).item() if output.shape[0] == 1 else output[0].item()
         
         prediction = 1 if prob > 0.5 else 0
         confidence = max(prob, 1 - prob)
@@ -111,7 +113,9 @@ class LightningPredictor:
             
             # Predict
             with torch.no_grad():
-                probs = self.model(batch_tensor).squeeze().cpu().numpy()
+                output = self.model(batch_tensor)
+                # Flatten to 1D (remove only output dimension, keep batch dimension)
+                probs = output.squeeze(dim=1).cpu().numpy() if output.shape[1] == 1 else output.cpu().numpy()
             
             # Format results
             if probs.ndim == 0:  # Single sample
