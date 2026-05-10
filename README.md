@@ -91,6 +91,25 @@ train:
 
 ## Key Components
 
+### Data Preprocessing (`src/preprocessing.py`)
+- **HimawariPreprocessor:** Converts raw Himawari-8 netCDF4 + MMD CSV → HDF5
+- **Features:** Cropping, patching, cloud masking, lightning labeling, class balancing
+- **Output:** HDF5 with train/val/test split indices
+
+```python
+from src.preprocessing import preprocess_from_config
+
+# Run preprocessing (requires raw Himawari-8 + MMD data)
+preprocess_from_config('config.yaml')
+```
+
+**Data Pipeline:**
+```
+Raw Himawari-8 (.nc files) ─┐
+Raw MMD Lightning (.csv)    ├→ Preprocessing → HDF5 Dataset
+Config (region, lead_time)  ─┘
+```
+
 ### Data Loader (`src/data_loader.py`)
 - **HDF5Dataset:** Lazy-loading from disk; supports train/val/test splits
 - **create_data_loaders():** Batch generators with augmentation
@@ -148,11 +167,25 @@ print(result['probability'])  # → 0.87
 ## Next Steps
 
 ### Phase 1: Data Preprocessing (In Progress)
-- [ ] Download Himawari-8 data from JMA/NOAA archive
+- [x] Create HimawariPreprocessor class
+- [x] Implement patch creation from satellite imagery
+- [x] Implement lightning labeling from MMD data
+- [x] Handle class imbalance (downsampling)
+- [ ] Download Himawari-8 data from JMA archive
 - [ ] Download MMD lightning records
-- [ ] Implement preprocessing.py (crop, reproject, label)
 - [ ] Generate HDF5 dataset
 - [ ] Validate dataset statistics
+
+**To run preprocessing:**
+```bash
+# Setup
+mkdir -p data/raw/himawari8
+# Download Himawari-8 netCDF4 files to data/raw/himawari8/
+# Download MMD CSV to data/raw/mmd_lightning.csv
+
+# Run
+python -c "from src.preprocessing import preprocess_from_config; preprocess_from_config('config.yaml')"
+```
 
 ### Phase 2: Training (Ready)
 - [ ] Create dummy HDF5 dataset for testing
