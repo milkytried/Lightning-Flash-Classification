@@ -6,6 +6,7 @@ import torch
 import numpy as np
 from pathlib import Path
 import yaml
+from typing import Union, List, Dict, Tuple
 
 from src.model_arch import LightningResNet50
 
@@ -21,10 +22,29 @@ class LightningPredictor:
             model_path (str): Path to saved model weights (.pth file)
             config_path (str): Path to config.yaml
             device (str): 'cuda' or 'cpu' (auto-detected if None)
+        
+        Raises:
+            FileNotFoundError: If config_path or model_path doesn't exist
+            ValueError: If YAML is invalid or model config is incomplete
+            RuntimeError: If model weights cannot be loaded
         """
-        # Load config
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+        # Verify paths exist
+        config_path_obj = Path(config_path)
+        model_path_obj = Path(model_path)
+        
+        if not config_path_obj.exists():
+            raise FileNotFoundError(f"Config not found: {config_path}. "
+                                   f"Expected at: {config_path_obj.absolute()}")
+        if not model_path_obj.exists():
+            raise FileNotFoundError(f"Model weights not found: {model_path}. "
+                                   f"Expected at: {model_path_obj.absolute()}")
+        
+        # Load config with error handling
+        try:
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML in {config_path}: {str(e)}")
         
         # Setup device
         if device is None:
@@ -33,31 +53,39 @@ class LightningPredictor:
             self.device = torch.device(device)
         
         # Load model
-        self.model = LightningResNet50(
-            num_input_channels=self.config['model']['num_input_channels']
-        )
-        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
-        self.model.to(self.device).eval()
+        try:
+            self.model = LightningResNet50(
+                num_input_channels=self.config['model']['num_input_channels']
+            )
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+            self.model.to(self.device).eval()
+        except KeyError as e:
+            raise ValueError(f"Missing config key for model: {str(e)}")
+        except RuntimeError as e:
+            raise RuntimeError(f"Failed to load model weights from {model_path}. "
+                              f"Possible cause: model trained on different PyTorch version. "
+                              f"Error: {str(e)}")
         
         print(f"Model loaded from {model_path}")
         print(f"Device: {self.device}")
     
-    def predict(self, image_tensor, lead_time_window=(0, 60)):
+    def predict(self, image_tensor: Union[np.ndarray, torch.Tensor], lead_time_window: Tuple[int, int] = (0, 60)) -> Dict:
         """
         Predict lightning probability for a single image.
         
         Args:
-            image_tensor (np.ndarray or torch.Tensor): 
+            image_tensor (Union[np.ndarray, torch.Tensor]): 
                 Image array, shape (C, H, W) or (H, W, C)
                 If (H, W, C), will be transposed to (C, H, W)
-            lead_time_window (tuple): Lead time in minutes
+            lead_time_window (Tuple[int, int]): Lead time in minutes
         
         Returns:
-            dict: {
+            Dict: {
                 'probability': float [0, 1],
                 'prediction': int [0, 1],
                 'confidence': float,
-                'lead_time_window': tuple
+                'lead_time_window': tuple,
+                'threshold': float
             }
         """
         # Convert to tensor if needed
@@ -73,8 +101,8 @@ class LightningPredictor:
         # Predict
         with torch.no_grad():
             output = self.model(image_tensor)
-            # Remove batch dimension only (axis 0)
-            prob = output.squeeze(dim=0).item() if output.shape[0] == 1 else output[0].item()
+            # Squeeze all dimensions of size 1 to extract scalar
+            prob = output.squeeze().item()
         
         prediction = 1 if prob > 0.5 else 0
         confidence = max(prob, 1 - prob)
@@ -87,17 +115,17 @@ class LightningPredictor:
             'threshold': 0.5
         }
     
-    def predict_batch(self, image_list, batch_size=16, lead_time_window=(0, 60)):
+    def predict_batch(self, image_list: List[Union[np.ndarray, torch.Tensor]], batch_size: int = 16, lead_time_window: Tuple[int, int] = (0, 60)) -> List[Dict]:
         """
         Batch inference for multiple images.
         
         Args:
-            image_list (list): List of image tensors
+            image_list (List[Union[np.ndarray, torch.Tensor]]): List of image tensors
             batch_size (int): Batch size for inference
-            lead_time_window (tuple): Lead time in minutes
+            lead_time_window (Tuple[int, int]): Lead time in minutes
         
         Returns:
-            list: List of prediction dictionaries
+            List[Dict]: List of prediction dictionaries
         """
         results = []
         

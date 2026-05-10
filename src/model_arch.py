@@ -62,7 +62,7 @@ class LightningResNet50(nn.Module):
             nn.Sigmoid()  # Binary output [0, 1]
         )
     
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
             x (torch.Tensor): shape (batch_size, C, H, W)
@@ -95,7 +95,7 @@ class FocalLoss(nn.Module):
         self.gamma = gamma
         self.reduction = reduction
     
-    def forward(self, inputs, targets):
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """
         Args:
             inputs (torch.Tensor): Predicted probabilities, shape (N, 1)

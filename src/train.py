@@ -11,12 +11,13 @@ import json
 from pathlib import Path
 from tqdm import tqdm
 import yaml
+from typing import Dict, Tuple
 
 from src.model_arch import LightningResNet50, FocalLoss
 from src.data_loader import create_data_loaders
 
 
-def set_seed(seed=42):
+def set_seed(seed: int = 42) -> None:
     """Set random seeds for reproducibility."""
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -25,7 +26,7 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
-def train_epoch(model, train_loader, optimizer, criterion, device):
+def train_epoch(model: nn.Module, train_loader, optimizer, criterion, device: torch.device) -> float:
     """Single training epoch."""
     model.train()
     total_loss = 0
@@ -48,7 +49,7 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
     return total_loss / len(train_loader)
 
 
-def validate(model, val_loader, criterion, device):
+def validate(model: nn.Module, val_loader, criterion, device: torch.device) -> Tuple[float, np.ndarray, np.ndarray]:
     """Validation epoch."""
     model.eval()
     total_loss = 0
@@ -73,13 +74,15 @@ def validate(model, val_loader, criterion, device):
     return avg_loss, all_preds, all_labels
 
 
-def validate_config(config):
+def validate_config(config: Dict) -> None:
     """Validate configuration dictionary."""
     required_keys = {
         'data': ['processed_dataset'],
-        'train': ['batch_size', 'max_epochs', 'learning_rate'],
-        'model': ['num_input_channels'],
-        'paths': ['models_dir', 'results_dir']
+        'train': ['batch_size', 'max_epochs', 'learning_rate', 'loss_alpha', 
+                 'loss_gamma', 'lr_scheduler_factor', 'lr_scheduler_patience',
+                 'early_stopping_patience', 'device'],
+        'model': ['num_input_channels', 'dropout'],
+        'paths': ['models_dir', 'results_dir', 'logs_dir']
     }
     
     for section, keys in required_keys.items():
@@ -90,15 +93,21 @@ def validate_config(config):
                 raise ValueError(f"Missing config key: {section}.{key}")
 
 
-def train_full(config_path='config.yaml'):
+def train_full(config_path: str = 'config.yaml') -> Tuple[nn.Module, Dict]:
     """Full training pipeline."""
     
     # Set seed for reproducibility
     set_seed(42)
     
     # Load and validate config
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Config file not found: {config_path}. "
+                               f"Expected at project root.")
+    except yaml.YAMLError as e:
+        raise ValueError(f"Invalid YAML in {config_path}: {str(e)}")
     
     validate_config(config)
     

@@ -4,6 +4,7 @@ Evaluation module for computing metrics and error analysis.
 
 import torch
 import numpy as np
+from typing import Dict, Tuple
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,
     confusion_matrix, roc_curve, auc, classification_report
@@ -14,7 +15,7 @@ from pathlib import Path
 import yaml
 
 
-def compute_metrics(predictions, labels, threshold=0.5):
+def compute_metrics(predictions: np.ndarray, labels: np.ndarray, threshold: float = 0.5) -> Dict:
     """
     Compute classification metrics.
     
@@ -24,7 +25,7 @@ def compute_metrics(predictions, labels, threshold=0.5):
         threshold (float): Classification threshold
     
     Returns:
-        dict: Metrics dictionary
+        Dict: Metrics dictionary
     """
     preds_binary = (predictions > threshold).astype(int)
     
@@ -80,7 +81,7 @@ def compute_metrics(predictions, labels, threshold=0.5):
     return metrics
 
 
-def evaluate_model(model, test_loader, device, results_dir='results/'):
+def evaluate_model(model: torch.nn.Module, test_loader, device: torch.device, results_dir: str = 'results/') -> Tuple[Dict, np.ndarray, np.ndarray]:
     """
     Comprehensive evaluation on test set.
     
@@ -91,7 +92,7 @@ def evaluate_model(model, test_loader, device, results_dir='results/'):
         results_dir: Directory to save results
     
     Returns:
-        dict: Metrics dictionary
+        Tuple[Dict, np.ndarray, np.ndarray]: (metrics, predictions, labels)
     """
     model.eval()
     all_preds = []
@@ -130,7 +131,7 @@ def evaluate_model(model, test_loader, device, results_dir='results/'):
     return metrics, preds, labels
 
 
-def plot_roc_curve(predictions, labels, results_dir='results/'):
+def plot_roc_curve(predictions: np.ndarray, labels: np.ndarray, results_dir: str = 'results/') -> None:
     """Plot ROC curve and save."""
     fpr, tpr, thresholds = roc_curve(labels, predictions)
     roc_auc = auc(fpr, tpr)

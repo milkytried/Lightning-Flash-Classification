@@ -7,6 +7,7 @@ import h5py
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
+from typing import Tuple, Dict
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
@@ -21,22 +22,40 @@ class HDF5Dataset(Dataset):
     - Supports train/val/test splits via indices
     """
     
-    def __init__(self, hdf5_path, split='train', augment=False):
+    def __init__(self, hdf5_path: str, split: str = 'train', augment: bool = False) -> None:
         """
         Args:
             hdf5_path (str): Path to HDF5 dataset file
             split (str): 'train', 'val', or 'test'
             augment (bool): Apply data augmentation (train only)
+        
+        Raises:
+            FileNotFoundError: If HDF5 file doesn't exist
+            ValueError: If required datasets missing
         """
         self.hdf5_path = hdf5_path
         self.split = split
         self.augment = augment
         
-        # Load metadata (not actual data)
-        with h5py.File(hdf5_path, 'r') as f:
-            self.num_samples_total = f['images'].shape[0]
-            self.image_shape = f['images'].shape[1:]
-            self.split_indices = f[f'{split}_indices'][:]
+        # Load metadata (not actual data) with validation
+        try:
+            with h5py.File(hdf5_path, 'r') as f:
+                # Validate required datasets exist
+                required_datasets = ['images', 'labels', f'{split}_indices']
+                for dataset in required_datasets:
+                    if dataset not in f:
+                        raise ValueError(
+                            f"Missing required dataset '{dataset}' in HDF5 file. "
+                            f"Available: {list(f.keys())}"
+                        )
+                
+                self.num_samples_total = f['images'].shape[0]
+                self.image_shape = f['images'].shape[1:]
+                self.split_indices = f[f'{split}_indices'][:]
+        except FileNotFoundError:
+            raise FileNotFoundError(f"HDF5 file not found: {hdf5_path}")
+        except Exception as e:
+            raise RuntimeError(f"Error reading HDF5 file {hdf5_path}: {str(e)}")
         
         self.num_samples = len(self.split_indices)
         
@@ -56,10 +75,10 @@ class HDF5Dataset(Dataset):
                 ToTensorV2(),
             ])
     
-    def __len__(self):
+    def __len__(self) -> int:
         return self.num_samples
     
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Lazy load single sample from disk.
         
@@ -67,7 +86,7 @@ class HDF5Dataset(Dataset):
             idx (int): Index within split
         
         Returns:
-            (torch.Tensor, torch.Tensor): (image, label)
+            Tuple[torch.Tensor, torch.Tensor]: (image, label)
         """
         try:
             # Get global index in HDF5 file
@@ -91,7 +110,7 @@ class HDF5Dataset(Dataset):
             raise RuntimeError(f"Error loading sample {idx}: {str(e)}")
 
 
-def create_data_loaders(hdf5_path, batch_size=16, num_workers=0):
+def create_data_loaders(hdf5_path: str, batch_size: int = 16, num_workers: int = 0) -> Dict[str, DataLoader]:
     """
     Create train/val/test data loaders.
     
@@ -101,7 +120,7 @@ def create_data_loaders(hdf5_path, batch_size=16, num_workers=0):
         num_workers (int): Number of worker processes (0 for Windows)
     
     Returns:
-        dict: {'train': DataLoader, 'val': DataLoader, 'test': DataLoader}
+        Dict[str, DataLoader]: {'train': DataLoader, 'val': DataLoader, 'test': DataLoader}
     """
     
     train_dataset = HDF5Dataset(hdf5_path, split='train', augment=True)
