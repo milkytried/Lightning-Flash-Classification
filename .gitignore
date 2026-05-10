@@ -1,0 +1,42 @@
+# Virtual environment
+venv/
+env/
+
+# Data (too large)
+data/raw/
+data/processed/*.h5
+
+# Model weights
+models/*.pth
+models/*.h5
+
+# Cache & compiled
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Logs
+*.log
+logs/
+runs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TensorBoard
+events.out.tfevents.*
+
+# Results
+results/plots/
+results/*.json
+results/*.png
+
+# Notebooks
+.ipynb_checkpoints/

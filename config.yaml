@@ -1,0 +1,55 @@
+# Lightning Flash Classification Config
+# Author: Amelia (Developer)
+# Last Modified: 2026-05-10
+
+project:
+  name: "Lightning Flash Classification"
+  description: "CNN-based nowcasting of CG lightning using Himawari-8"
+  version: "1.0"
+
+data:
+  raw_himawari_dir: "data/raw/himawari8/"
+  raw_mmd_csv: "data/raw/mmd_lightning.csv"
+  processed_dataset: "data/processed/dataset.h5"
+  region_bbox: [100.0, 120.0, -5.0, 15.0]  # [lon_min, lon_max, lat_min, lat_max]
+  lead_time_window: [0, 60]  # minutes
+  
+preprocessing:
+  patch_size: 64  # pixels
+  num_channels: 3  # IR, WV, VIS (or subset)
+  brightness_temp_threshold: 290.0  # K; cloud masking
+  downsample_ratio: 0.2  # keep 20% of negatives
+  augmentation_enabled: true
+
+train:
+  batch_size: 16  # RTX 3050 constraint
+  max_epochs: 100
+  learning_rate: 0.001
+  optimizer: "Adam"
+  loss_function: "FocalLoss"
+  loss_alpha: 0.25  # Focal Loss parameter
+  loss_gamma: 2.0
+  lr_scheduler: "ReduceLROnPlateau"
+  lr_scheduler_factor: 0.5
+  lr_scheduler_patience: 5
+  early_stopping_patience: 10
+  gradient_clip_norm: 1.0
+  device: "cuda"  # or "cpu"
+
+model:
+  architecture: "ResNet50"  # or "UNet"
+  pretrained: true
+  num_input_channels: 3
+  num_classes: 1
+  dropout: 0.5
+  
+evaluation:
+  threshold: 0.5  # Classification threshold
+  compute_roc: true
+  save_confusion_matrix: true
+  
+paths:
+  models_dir: "models/"
+  results_dir: "results/"
+  logs_dir: "logs/"
+  notebooks_dir: "notebooks/"

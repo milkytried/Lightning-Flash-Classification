@@ -1,0 +1,277 @@
+# Lightning Flash Classification Using Himawari-8 Satellite Imagery
+
+## Project Overview
+
+This capstone project develops a CNN-based deep learning model to predict cloud-to-ground (CG) lightning occurrence over Malaysia within a 0–60 minute forecast window using Himawari-8 geostationary satellite imagery and historical ground lightning records from the Malaysian Meteorological Department (MMD).
+
+**Key Objectives:**
+- Acquire and preprocess Himawari-8 satellite imagery + MMD lightning data
+- Develop CNN model (ResNet-50) for lightning nowcasting
+- Achieve ≥85% recall on test set
+- Document reproducible pipeline
+
+**Status:** Early development (Framework and unit tests ready)
+
+---
+
+## Quick Start
+
+### 1. Setup Environment
+
+```bash
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Verify Installation
+
+```bash
+# Run unit tests
+pytest tests/ -v --cov=src/
+
+# Test model forward pass
+python src/model_arch.py
+
+# Test data loader
+python src/data_loader.py
+```
+
+### 3. Project Structure
+
+```
+Project-Capstone/
+├── src/
+│   ├── __init__.py
+│   ├── data_loader.py           # HDF5 lazy-loading
+│   ├── model_arch.py            # ResNet-50 + Focal Loss
+│   ├── train.py                 # Training loop
+│   ├── evaluate.py              # Metrics + error analysis
+│   └── inference.py             # Prediction API
+├── data/
+│   ├── raw/                     # Raw Himawari-8 + MMD (gitignored)
+│   └── processed/               # HDF5 dataset (gitignored)
+├── models/
+│   └── best_resnet50.pth        # Trained weights (gitignored)
+├── results/
+│   ├── metrics.json             # Test metrics
+│   └── plots/                   # ROC, confusion matrix
+├── tests/
+│   ├── test_data_loader.py
+│   ├── test_model.py
+│   └── test_train.py
+├── config.yaml                  # Hyperparameters
+├── requirements.txt             # Python dependencies
+└── README.md                    # This file
+```
+
+---
+
+## Configuration
+
+Edit `config.yaml` to customize:
+- **Batch size:** Currently 16 (RTX 3050 optimized)
+- **Learning rate:** 0.001
+- **Loss function:** Focal Loss (handles class imbalance)
+- **Max epochs:** 100 (with early stopping)
+
+Example:
+```yaml
+train:
+  batch_size: 16
+  learning_rate: 0.001
+  max_epochs: 100
+  early_stopping_patience: 10
+```
+
+---
+
+## Key Components
+
+### Data Loader (`src/data_loader.py`)
+- **HDF5Dataset:** Lazy-loading from disk; supports train/val/test splits
+- **create_data_loaders():** Batch generators with augmentation
+- **Feature:** On-CPU augmentation (flip, rotate, noise) to save GPU memory
+
+```python
+from src.data_loader import create_data_loaders
+
+loaders = create_data_loaders('data/processed/dataset.h5', batch_size=16)
+train_loader = loaders['train']
+```
+
+### Model Architecture (`src/model_arch.py`)
+- **LightningResNet50:** Transfer learning from ImageNet-pretrained ResNet-50
+- **FocalLoss:** Handles class imbalance (lightning events rare)
+- **Input:** (batch, 3, 64, 64); **Output:** (batch, 1) ∈ [0, 1]
+
+```python
+from src.model_arch import LightningResNet50
+
+model = LightningResNet50(num_input_channels=3)
+output = model(torch.randn(16, 3, 64, 64))
+```
+
+### Training Loop (`src/train.py`)
+- Reproducible training with early stopping
+- Learning rate scheduling (ReduceLROnPlateau)
+- Gradient clipping to prevent exploding gradients
+
+```bash
+# Start training (requires dataset.h5)
+python src/train.py
+```
+
+### Evaluation (`src/evaluate.py`)
+- Computes: Accuracy, Precision, Recall, F1, ROC-AUC
+- Meteorological metrics: POD, FAR, HSS, TSS
+- Visualizations: ROC curve, confusion matrix, error analysis
+
+### Inference API (`src/inference.py`)
+- LightningPredictor class for per-image predictions
+- Batch inference support
+- Returns probability + prediction + confidence
+
+```python
+from src.inference import LightningPredictor
+
+predictor = LightningPredictor('models/best_resnet50.pth')
+result = predictor.predict(image_tensor)
+print(result['probability'])  # → 0.87
+```
+
+---
+
+## Next Steps
+
+### Phase 1: Data Preprocessing (In Progress)
+- [ ] Download Himawari-8 data from JMA/NOAA archive
+- [ ] Download MMD lightning records
+- [ ] Implement preprocessing.py (crop, reproject, label)
+- [ ] Generate HDF5 dataset
+- [ ] Validate dataset statistics
+
+### Phase 2: Training (Ready)
+- [ ] Create dummy HDF5 dataset for testing
+- [ ] Run training loop
+- [ ] Monitor loss curves in TensorBoard
+- [ ] Verify early stopping works
+
+### Phase 3: Evaluation (Ready)
+- [ ] Run test set evaluation
+- [ ] Generate metrics report
+- [ ] Create visualizations
+- [ ] Error analysis
+
+### Phase 4: Documentation (Ready)
+- [ ] Methods paper
+- [ ] API documentation
+- [ ] Deployment guide
+- [ ] Final presentation
+
+---
+
+## Testing
+
+Run all tests:
+```bash
+pytest tests/ -v --cov=src/
+```
+
+Run specific test:
+```bash
+pytest tests/test_model.py -v
+```
+
+Expected output:
+```
+tests/test_model.py::test_resnet50_initialization PASSED
+tests/test_model.py::test_forward_pass_shape PASSED
+tests/test_model.py::test_focal_loss_computation PASSED
+...
+```
+
+---
+
+## Hardware Requirements
+
+- **GPU:** NVIDIA RTX 3050 (8 GB VRAM)
+- **RAM:** 16 GB system RAM
+- **Storage:** ~200 GB (raw + processed data)
+- **Training time:** ~24–48 hrs per epoch (dataset size dependent)
+
+**GPU Memory Breakdown:**
+- Model weights: ~100 MB
+- Batch (16 samples): ~2.4 GB
+- Activations: ~1.5 GB
+- Gradients: ~2.4 GB
+- Optimizer state: ~1.0 GB
+- **Total: ~7.4 GB** ✓
+
+---
+
+## Troubleshooting
+
+### CUDA Out of Memory (OOM)
+```python
+# Reduce batch size in config.yaml
+batch_size: 8  # Instead of 16
+
+# Or use gradient checkpointing (slower, lower memory)
+# Or switch to ResNet-18
+```
+
+### Dataset Not Found
+```bash
+# Create dummy dataset for testing
+python -c "
+import h5py
+import numpy as np
+
+with h5py.File('data/processed/dummy_dataset.h5', 'w') as f:
+    f.create_dataset('images', data=np.random.rand(1000, 64, 64, 3))
+    f.create_dataset('labels', data=np.random.randint(0, 2, 1000))
+    f.create_dataset('train_indices', data=np.arange(800))
+    f.create_dataset('val_indices', data=np.arange(800, 900))
+    f.create_dataset('test_indices', data=np.arange(900, 1000))
+"
+```
+
+### Import Errors
+```bash
+# Reinstall dependencies
+pip install -r requirements.txt --force-reinstall
+```
+
+---
+
+## Documentation
+
+- **PRD:** `_bmad-output/planning-artifacts/PRD.md`
+- **Architecture:** `_bmad-output/planning-artifacts/ARCHITECTURE.md`
+- **Product Brief:** `_bmad-output/planning-artifacts/product-brief.md`
+
+---
+
+## License & Attribution
+
+**Author:** Chai Wen Cheng (23073679)  
+**Supervisor:** Associate Professor Ir Ts. Dr Wong Shen Yuong  
+**Institution:** Sunway University, School of Computing and Artificial Intelligence
+
+---
+
+## References
+
+- Cintineo et al. (2022). LightningCast: A Convolutional Recurrent Neural Network for Lightning Prediction
+- Lee & Suh (2024). Lightning prediction with GK2A geostationary satellite imagery
+- He et al. (2016). Deep Residual Learning for Image Recognition (ResNet)
+- Lin et al. (2017). Focal Loss for Dense Object Detection
+
+---
+
+**Last Updated:** 2026-05-10  
+**Status:** ✓ Framework ready; Awaiting data preprocessing
