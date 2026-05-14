@@ -10,7 +10,16 @@ This capstone project develops a CNN-based deep learning model to predict cloud-
 - Achieve ≥85% recall on test set
 - Document reproducible pipeline
 
-**Status:** Early development (Framework and unit tests ready)
+**Status:** Framework stable; daily ingestion and test pipeline validated
+
+### Recent Stability Updates (2026-05-14)
+
+- Daily ingestion now avoids duplicate appends by skipping PNG files already recorded in HDF5 metadata.
+- Legacy HDF5 metadata datasets are auto-migrated to resizable/chunked format during append operations.
+- PNG timestamp parsing now supports additional filename formats, including `DD_Mon_Himawari` (e.g., `15_May_Himawari.png`).
+- Scheduler console logs are ASCII-safe for Windows terminals (no Unicode encoding spam).
+- DataLoader uses accelerator-aware pinned memory to avoid CPU-only runtime warnings.
+- Dependency issue fixed by pinning Albumentations to a compatible version in `requirements.txt`.
 
 ---
 
@@ -108,6 +117,12 @@ preprocess_from_config('config.yaml')
 Raw Himawari-8 (.nc files) ─┐
 Raw MMD Lightning (.csv)    ├→ Preprocessing → HDF5 Dataset
 Config (region, lead_time)  ─┘
+
+### Daily Ingestion (`src/daily_data_ingestion.py`, `src/daily_scheduler.py`)
+- Monitors `data/raw/himawari8_pngs/` for PNG files.
+- Extracts channels and patches, then appends incrementally to HDF5.
+- Skips already-ingested PNG filenames to prevent duplicate data growth on repeat runs.
+- Supports one-shot execution and scheduled daily execution.
 ```
 
 ### Data Loader (`src/data_loader.py`)
@@ -306,5 +321,5 @@ pip install -r requirements.txt --force-reinstall
 
 ---
 
-**Last Updated:** 2026-05-10  
-**Status:** ✓ Framework ready; Awaiting data preprocessing
+**Last Updated:** 2026-05-14  
+**Status:** ✓ Framework and ingestion stabilized; ready for continued real-data accumulation and model iteration

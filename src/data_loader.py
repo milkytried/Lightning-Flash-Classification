@@ -127,12 +127,15 @@ def create_data_loaders(hdf5_path: str, batch_size: int = 16, num_workers: int =
     val_dataset = HDF5Dataset(hdf5_path, split='val', augment=False)
     test_dataset = HDF5Dataset(hdf5_path, split='test', augment=False)
     
+    # Only pin memory when an accelerator is available.
+    use_pin_memory = torch.cuda.is_available()
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,  # Faster GPU transfer
+        pin_memory=use_pin_memory,
     )
     
     val_loader = DataLoader(
@@ -140,7 +143,7 @@ def create_data_loaders(hdf5_path: str, batch_size: int = 16, num_workers: int =
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=use_pin_memory,
     )
     
     test_loader = DataLoader(
@@ -148,7 +151,7 @@ def create_data_loaders(hdf5_path: str, batch_size: int = 16, num_workers: int =
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=use_pin_memory,
     )
     
     return {

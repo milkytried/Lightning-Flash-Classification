@@ -9,7 +9,6 @@ This module:
 5. Triggers model retraining when enough new data accumulates
 """
 
-import os
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -17,7 +16,6 @@ from typing import Tuple, Optional, List, Dict
 import numpy as np
 import h5py
 from PIL import Image
-import cv2
 
 logger = logging.getLogger(__name__)
 
@@ -82,27 +80,65 @@ class HimawariPNGLoader:
         """
         Parse timestamp from Himawari-8 filename.
 
-        Expected format: YYYYMMDDD_HHMM or similar
+        Supports common filename formats such as:
+        - YYYYMMDD_HHMM
+        - YYYYMMDDHHMM
+        - DD_Mon_Himawari (falls back to 00:00, current year)
+
         Returns ISO format string: YYYY-MM-DDTHH:MM:00
         """
         # Remove common suffixes
-        clean = filename.replace("_ir_enhanced", "").replace("_ir", "").replace("_wv", "")
+        clean = (
+            filename
+            .replace("_ir_enhanced", "")
+            .replace("_ir", "")
+            .replace("_wv", "")
+            .replace("_vis", "")
+        )
 
-        if "_" in clean:
-            date_part, time_part = clean.split("_")[:2]
-        else:
-            date_part, time_part = clean[:8], clean[8:12]
+        parts = clean.split("_")
 
-        # Parse YYYYMMDD
-        year = int(date_part[:4])
-        month = int(date_part[4:6])
-        day = int(date_part[6:8])
+        # Format: YYYYMMDD_HHMM
+        if len(parts) >= 2 and len(parts[0]) == 8 and parts[0].isdigit() and len(parts[1]) == 4 and parts[1].isdigit():
+            year = int(parts[0][:4])
+            month = int(parts[0][4:6])
+            day = int(parts[0][6:8])
+            hour = int(parts[1][:2])
+            minute = int(parts[1][2:4])
+            return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:00"
 
-        # Parse HHMM
-        hour = int(time_part[:2])
-        minute = int(time_part[2:4])
+        # Format: YYYYMMDDHHMM
+        if len(clean) >= 12 and clean[:12].isdigit():
+            compact = clean[:12]
+            year = int(compact[:4])
+            month = int(compact[4:6])
+            day = int(compact[6:8])
+            hour = int(compact[8:10])
+            minute = int(compact[10:12])
+            return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:00"
 
-        return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:00"
+        # Format: DD_Mon_Himawari (time defaults to 00:00)
+        if len(parts) >= 2 and parts[0].isdigit() and parts[1].isalpha():
+            day = int(parts[0])
+            month = datetime.strptime(parts[1][:3].title(), "%b").month
+
+            year = datetime.now().year
+            for part in parts:
+                if len(part) == 4 and part.isdigit():
+                    year = int(part)
+                    break
+
+            hour = 0
+            minute = 0
+            for part in parts:
+                if len(part) == 4 and part.isdigit() and not (1900 <= int(part) <= 2100):
+                    hour = int(part[:2])
+                    minute = int(part[2:4])
+                    break
+
+            return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:00"
+
+        raise ValueError(f"Unsupported filename timestamp format: {filename}")
 
     def _extract_channels(self, img_array: np.ndarray) -> np.ndarray:
         """
@@ -218,13 +254,21 @@ class DailyDataPipeline:
             "total_patches": 0,
             "errors": 0,
             "files_processed": [],
+            "files_skipped_existing": 0,
         }
 
         # Find all PNG files
         png_files = sorted(self.png_dir.glob("*.png"))
         logger.info(f"Found {len(png_files)} PNG files in {self.png_dir}")
 
+        processed_png_names = self._get_processed_png_names()
+
         for png_path in png_files:
+            if png_path.name in processed_png_names:
+                stats["files_skipped_existing"] += 1
+                logger.info(f"Skipped already processed PNG: {png_path.name}")
+                continue
+
             try:
                 # Load PNG and extract channels
                 channels, timestamp = self.loader.load_png(str(png_path))
@@ -247,6 +291,30 @@ class DailyDataPipeline:
                 stats["errors"] += 1
 
         return stats
+
+    def _get_processed_png_names(self) -> set[str]:
+        """Return PNG basenames that were already ingested into HDF5."""
+        if not self.hdf5_path.exists():
+            return set()
+
+        try:
+            with h5py.File(self.hdf5_path, "r") as f:
+                if "source_files" not in f:
+                    return set()
+
+                names = set()
+                for item in f["source_files"][:]:
+                    if isinstance(item, bytes):
+                        value = item.decode("utf-8", errors="ignore")
+                    else:
+                        value = str(item)
+                    if value:
+                        names.add(Path(value).name)
+
+                return names
+        except Exception as e:
+            logger.warning(f"Could not read processed file list from HDF5: {e}")
+            return set()
 
     def _append_to_hdf5(
         self, patches: List[np.ndarray], timestamp: str, source_file: str
@@ -317,6 +385,9 @@ class DailyDataPipeline:
     ) -> None:
         """Append new patches to existing HDF5 file."""
         with h5py.File(self.hdf5_path, "a") as f:
+            self._ensure_resizable_string_dataset(f, "timestamps")
+            self._ensure_resizable_string_dataset(f, "source_files")
+
             # Get current size
             current_size = f["images"].shape[0]
             new_size = current_size + len(patches)
@@ -337,6 +408,35 @@ class DailyDataPipeline:
                 f"Appended to HDF5: {len(patches)} samples "
                 f"(total: {new_size})"
             )
+
+    def _ensure_resizable_string_dataset(self, h5_file: h5py.File, name: str) -> None:
+        """Ensure string metadata dataset is chunked and resizable for append operations."""
+        if name not in h5_file:
+            current_size = h5_file["images"].shape[0]
+            h5_file.create_dataset(
+                name,
+                (current_size,),
+                maxshape=(None,),
+                chunks=(max(1, min(100, current_size)),),
+                dtype=h5py.string_dtype(encoding="utf-8"),
+            )
+            h5_file[name][:] = [""] * current_size
+            return
+
+        dataset = h5_file[name]
+        if dataset.maxshape and dataset.maxshape[0] is None and dataset.chunks is not None:
+            return
+
+        # Migrate fixed-size/non-chunked dataset to a resizable chunked layout.
+        data = dataset[:]
+        del h5_file[name]
+        h5_file.create_dataset(
+            name,
+            data=data,
+            maxshape=(None,),
+            chunks=(max(1, min(100, len(data))),),
+            dtype=h5py.string_dtype(encoding="utf-8"),
+        )
 
     def get_dataset_stats(self) -> Dict[str, any]:
         """Get current HDF5 dataset statistics."""

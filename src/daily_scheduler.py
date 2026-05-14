@@ -77,7 +77,7 @@ class DailyTrainingScheduler:
     def run_daily_task(self) -> None:
         """Execute daily data processing task."""
         logger.info("=" * 60)
-        logger.info("🔄 DAILY TASK STARTED")
+        logger.info("[START] DAILY TASK STARTED")
         logger.info(f"Timestamp: {datetime.now().isoformat()}")
         logger.info("=" * 60)
 
@@ -86,10 +86,10 @@ class DailyTrainingScheduler:
             before_stats = self.pipeline.get_dataset_stats()
             before_samples = before_stats.get("total_samples", 0)
 
-            logger.info(f"📊 Before: {before_samples} samples")
+            logger.info(f"[STATS] Before: {before_samples} samples")
 
             # Process new PNGs
-            logger.info("🔍 Scanning for new PNG files...")
+            logger.info("[SCAN] Scanning for new PNG files...")
             process_stats = self.pipeline.process_new_pngs()
 
             # Get updated stats
@@ -97,26 +97,26 @@ class DailyTrainingScheduler:
             after_samples = after_stats.get("total_samples", 0)
             new_samples = after_samples - before_samples
 
-            logger.info(f"📊 After: {after_samples} samples")
-            logger.info(f"➕ New samples: {new_samples}")
+            logger.info(f"[STATS] After: {after_samples} samples")
+            logger.info(f"[STATS] New samples: {new_samples}")
 
             # Log processing results
-            logger.info(f"✅ PNGs processed: {process_stats['new_pngs']}")
-            logger.info(f"✅ Patches created: {process_stats['total_patches']}")
-            logger.info(f"❌ Errors: {process_stats['errors']}")
+            logger.info(f"[RESULT] PNGs processed: {process_stats['new_pngs']}")
+            logger.info(f"[RESULT] Patches created: {process_stats['total_patches']}")
+            logger.info(f"[RESULT] Errors: {process_stats['errors']}")
 
             # Determine if retraining is needed
             labeled_samples = after_stats.get("labeled_samples", 0)
             if labeled_samples >= self.min_new_samples:
                 logger.info(
-                    f"\n🚀 RETRAINING TRIGGERED: {labeled_samples} labeled samples available"
+                    f"\n[TRAIN] RETRAINING TRIGGERED: {labeled_samples} labeled samples available"
                 )
                 logger.info(
-                    "ℹ️  Run: python src/train.py (when lightning labels are available)"
+                    "[INFO] Run: python src/train.py (when lightning labels are available)"
                 )
             else:
                 logger.info(
-                    f"⏸️  Not retraining yet. Need {self.min_new_samples} labeled samples, "
+                    f"[TRAIN] Not retraining yet. Need {self.min_new_samples} labeled samples, "
                     f"have {labeled_samples}"
                 )
 
@@ -135,11 +135,11 @@ class DailyTrainingScheduler:
             self._log_summary(summary)
 
             logger.info("=" * 60)
-            logger.info("✅ DAILY TASK COMPLETED")
+            logger.info("[DONE] DAILY TASK COMPLETED")
             logger.info("=" * 60 + "\n")
 
         except Exception as e:
-            logger.error(f"❌ Task failed: {e}", exc_info=True)
+            logger.error(f"[ERROR] Task failed: {e}", exc_info=True)
 
     def _log_summary(self, summary: dict) -> None:
         """Save JSON summary of daily processing."""
@@ -152,23 +152,23 @@ class DailyTrainingScheduler:
         with open(summary_file, "w") as f:
             json.dump(summary, f, indent=2)
 
-        logger.info(f"📝 Summary saved: {summary_file}")
+        logger.info(f"[LOG] Summary saved: {summary_file}")
 
     def schedule_task(self) -> None:
         """Schedule task to run at specified time daily."""
         schedule.every().day.at(self.run_time).do(self.run_daily_task)
-        logger.info(f"📅 Scheduled daily task at {self.run_time}")
+        logger.info(f"[SCHEDULE] Daily task at {self.run_time}")
 
     def start_scheduler(self) -> None:
         """Start the scheduler (blocking)."""
-        logger.info("🚀 Scheduler started. Press Ctrl+C to stop.")
+        logger.info("[START] Scheduler started. Press Ctrl+C to stop.")
 
         try:
             while True:
                 schedule.run_pending()
                 time_module.sleep(60)  # Check every minute
         except KeyboardInterrupt:
-            logger.info("\n⛔ Scheduler stopped by user")
+            logger.info("\n[STOP] Scheduler stopped by user")
 
     def run_once(self) -> None:
         """Run the daily task immediately (for testing)."""
@@ -184,12 +184,12 @@ def main():
     if len(sys.argv) > 1:
         if sys.argv[1] == "once":
             # Run immediately
-            print("🧪 Running daily task immediately...")
+            print("[TEST] Running daily task immediately...")
             scheduler = DailyTrainingScheduler()
             scheduler.run_once()
         elif sys.argv[1] == "schedule":
             # Start scheduler
-            print("📅 Starting daily scheduler...")
+            print("[START] Starting daily scheduler...")
             scheduler = DailyTrainingScheduler()
             scheduler.schedule_task()
             scheduler.start_scheduler()
@@ -200,7 +200,7 @@ def main():
             print("  python daily_scheduler.py schedule   # Start scheduler")
     else:
         # Default: run immediately
-        print("🧪 Running daily task immediately...")
+        print("[TEST] Running daily task immediately...")
         scheduler = DailyTrainingScheduler()
         scheduler.run_once()
 
