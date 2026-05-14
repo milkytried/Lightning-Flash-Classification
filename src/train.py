@@ -136,8 +136,7 @@ def train_full(config_path: str = 'config.yaml') -> Tuple[nn.Module, Dict]:
         optimizer,
         mode='min',
         factor=config['train']['lr_scheduler_factor'],
-        patience=config['train']['lr_scheduler_patience'],
-        verbose=True
+        patience=config['train']['lr_scheduler_patience']
     )
     
     # Data

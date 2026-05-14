@@ -101,6 +101,10 @@ class HDF5Dataset(Dataset):
             image = image.astype(np.float32)
             label = np.float32(label)
             
+            # Transpose from (C, H, W) to (H, W, C) for albumentations
+            if image.ndim == 3 and image.shape[0] == 3:
+                image = np.transpose(image, (1, 2, 0))
+            
             # Apply consistent augmentation pipeline
             augmented = self.transform(image=image)
             image = augmented['image']
