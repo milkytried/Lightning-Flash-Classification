@@ -41,5 +41,6 @@ results/*.png
 # Notebooks
 .ipynb_checkpoints/
 
-# Internal artifacts (not for GitHub)
-AGENT_REFERENCE_ARTIFACT.md
+# BMAD workspace artifacts
+_bmad/
+_bmad-output/
