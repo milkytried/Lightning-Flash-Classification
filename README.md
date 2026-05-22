@@ -12,6 +12,11 @@ This capstone project develops a CNN-based deep learning model to predict cloud-
 
 **Status:** Framework stable; daily ingestion and test pipeline validated
 
+### Repository Hygiene
+
+- This repository keeps only production code, tests, and user-facing docs.
+- Internal review artifacts, draft corrected copies, generated data, model weights, and BMAD workspace artifacts are intentionally excluded from version control.
+
 ### Recent Stability Updates (2026-05-14)
 
 - Daily ingestion now avoids duplicate appends by skipping PNG files already recorded in HDF5 metadata.
