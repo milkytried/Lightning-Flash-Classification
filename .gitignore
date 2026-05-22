@@ -40,3 +40,7 @@ results/*.png
 
 # Notebooks
 .ipynb_checkpoints/
+
+# BMAD workspace artifacts
+_bmad/
+_bmad-output/
