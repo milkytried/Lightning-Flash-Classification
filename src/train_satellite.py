@@ -187,7 +187,7 @@ class SatelliteTrainer:
         
         # Optimizer and scheduler
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
-        scheduler = ReduceLROnPlateau(optimizer, factor=0.5, patience=5, verbose=True)
+        scheduler = ReduceLROnPlateau(optimizer, factor=0.5, patience=5)
         
         # Training history
         history = {

@@ -101,6 +101,9 @@ class SatelliteDatasetBuilder:
             logger.info(f"Limited to {len(png_files)} PNGs")
         
         # Determine date range for split assignment
+        train_end = None
+        val_end = None
+        
         if png_files:
             dates = [dt for _, dt in png_files]
             min_date = min(dates)
@@ -133,21 +136,43 @@ class SatelliteDatasetBuilder:
                 # Load PNG
                 png_array = self.png_loader.load_png(png_path)
                 
-                # Filter lightning records for this PNG's date
-                png_date_start = pd.Timestamp(png_dt).normalize()
-                png_date_end = png_date_start + pd.Timedelta(days=1)
+                # Filter lightning records for this PNG's date (using pandas Timestamp for compatibility)
+                if isinstance(png_dt, pd.Timestamp):
+                    png_date_start = png_dt.normalize()
+                    png_date_end = png_date_start + pd.Timedelta(days=1)
+                else:
+                    png_ts = pd.Timestamp(png_dt)
+                    png_date_start = png_ts.normalize()
+                    png_date_end = png_date_start + pd.Timedelta(days=1)
+                
+                # Handle timezone-aware lightning data
+                try:
+                    if all_lightning_df['timestamp'].dtype.tz is not None:
+                        png_date_start = png_date_start.tz_localize('UTC')
+                        png_date_end = png_date_end.tz_localize('UTC')
+                except:
+                    pass
                 
                 time_mask = (all_lightning_df['timestamp'] >= png_date_start) & \
                             (all_lightning_df['timestamp'] < png_date_end)
                 daily_lightning_df = all_lightning_df[time_mask]
                 
-                # Assign split based on date
-                if png_dt < train_end:
-                    split = 'train'
-                elif png_dt < val_end:
-                    split = 'val'
+                # Assign split based on date (convert png_dt to pandas Timestamp if needed)
+                if isinstance(png_dt, pd.Timestamp):
+                    png_ts_cmp = png_dt
                 else:
-                    split = 'test'
+                    png_ts_cmp = pd.Timestamp(png_dt)
+                
+                if train_end is not None and val_end is not None:
+                    if png_ts_cmp < train_end:
+                        split = 'train'
+                    elif png_ts_cmp < val_end:
+                        split = 'val'
+                    else:
+                        split = 'test'
+                else:
+                    # Default if splits not computed
+                    split = 'train'
                 
                 # Extract patches
                 result = self.patch_extractor.process_png_for_dataset(
@@ -221,10 +246,10 @@ if __name__ == '__main__':
     # Initialize builder
     builder = SatelliteDatasetBuilder(png_loader, csv_parser, patch_extractor)
     
-    # Build dataset (with limit for testing)
+    # Build dataset (full dataset - all PNGs)
     print("Building satellite patch dataset...")
-    print("(Using sample_limit=2 for quick test)")
-    df = builder.build_dataset(sample_limit=2)
+    print("Processing all 19 PNG files...")
+    df = builder.build_dataset(sample_limit=None)
     
     if len(df) > 0:
         print(f"\nSample records:")

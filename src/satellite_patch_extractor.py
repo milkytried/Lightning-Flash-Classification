@@ -6,6 +6,7 @@ Creates positive samples (at lightning locations) and negative samples
 """
 
 import numpy as np
+import pandas as pd
 import os
 from PIL import Image
 from pathlib import Path
@@ -76,12 +77,17 @@ class SatellitePatchExtractor:
         x_min = max(0, x - half_size)
         x_max = min(png_array.shape[1], x + half_size)
         
-        # Skip if patch is too close to boundary
-        if (y_max - y_min) < patch_size * 0.9 or (x_max - x_min) < patch_size * 0.9:
-            logger.debug(f"Patch too close to boundary at ({x}, {y})")
+        # Check if patch has exact required size
+        if (y_max - y_min) != patch_size or (x_max - x_min) != patch_size:
+            logger.debug(f"Patch too close to boundary at ({x}, {y}): {y_max - y_min}×{x_max - x_min}")
             return None, (x, y)
         
         patch = png_array[y_min:y_max, x_min:x_max, :].copy()
+        
+        # Final sanity check
+        if patch.shape != (patch_size, patch_size, 3):
+            logger.debug(f"Patch shape mismatch: {patch.shape} != {(patch_size, patch_size, 3)}")
+            return None, (x, y)
         
         return patch, (x, y)
     
@@ -141,15 +147,17 @@ class SatellitePatchExtractor:
             y = valid_coords[0][idx]
             x = valid_coords[1][idx]
             
-            # Extract patch
-            y_min = max(0, y - half_size)
-            y_max = min(h, y + half_size)
-            x_min = max(0, x - half_size)
-            x_max = min(w, x + half_size)
+            # Extract patch - must be exactly patch_size x patch_size
+            y_min = y - half_size
+            y_max = y + half_size
+            x_min = x - half_size
+            x_max = x + half_size
             
-            if (y_max - y_min) >= patch_size * 0.9 and (x_max - x_min) >= patch_size * 0.9:
+            # Check if patch is within bounds and exact size
+            if y_min >= 0 and y_max <= h and x_min >= 0 and x_max <= w:
                 patch = png_array[y_min:y_max, x_min:x_max, :].copy()
-                negative_patches.append((patch, (x, y)))
+                if patch.shape == (patch_size, patch_size, 3):
+                    negative_patches.append((patch, (x, y)))
         
         return negative_patches
     
@@ -209,9 +217,14 @@ class SatellitePatchExtractor:
             logger.debug(f"No lightning records for {png_datetime}")
             return result
         
+        # Convert png_datetime to pandas Timestamp for proper comparison with timezone-aware data
+        png_ts = pd.Timestamp(png_datetime)
+        if png_ts.tz is None:
+            png_ts = png_ts.tz_localize('UTC')
+        
         # Filter lightning records within lead time window
-        time_min = png_datetime - pd.Timedelta(minutes=self.lead_time_minutes)
-        time_max = png_datetime + pd.Timedelta(minutes=self.lead_time_minutes)
+        time_min = png_ts - pd.Timedelta(minutes=self.lead_time_minutes)
+        time_max = png_ts + pd.Timedelta(minutes=self.lead_time_minutes)
         
         # Assuming lightning_df has 'timestamp' column
         mask = (lightning_df['timestamp'] >= time_min) & (lightning_df['timestamp'] <= time_max)
@@ -232,7 +245,7 @@ class SatellitePatchExtractor:
             
             if patch is not None:
                 # Save patch
-                patch_id = f"{png_datetime.strftime('%Y%m%d_%H%M%S')}_{len(result['patches'])}"
+                patch_id = f"{png_ts.strftime('%Y%m%d_%H%M%S')}_{len(result['patches'])}"
                 patch_path = self.output_dir / split / 'positive' / f"{patch_id}.png"
                 
                 if self.save_patch(patch, patch_path):
@@ -257,7 +270,7 @@ class SatellitePatchExtractor:
             
             for i, (patch, (x, y)) in enumerate(negative_patches):
                 # Save patch
-                patch_id = f"{png_datetime.strftime('%Y%m%d_%H%M%S')}_neg_{i}"
+                patch_id = f"{png_ts.strftime('%Y%m%d_%H%M%S')}_neg_{i}"
                 patch_path = self.output_dir / split / 'negative' / f"{patch_id}.png"
                 
                 if self.save_patch(patch, patch_path):

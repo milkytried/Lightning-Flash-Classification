@@ -90,6 +90,9 @@ class SatelliteEvaluator:
                 all_preds.append(preds)
                 all_labels.append(labels.numpy())
         
+        if not all_probs:
+            raise ValueError(f"No predictions made for split '{split_name}' - dataloader was empty")
+        
         all_probs = np.concatenate(all_probs)
         all_preds = np.concatenate(all_preds)
         all_labels = np.concatenate(all_labels)
@@ -281,17 +284,29 @@ def evaluate_satellite_model(dataset_csv: str = 'data/processed/satellite_datase
     # Load test data
     logger.info(f"Loading test data from {dataset_csv}...")
     loaders = create_himawari_loaders(dataset_csv, batch_size=batch_size)
-    test_loader = loaders['test']
+    test_loader = loaders.get('test', None)
+    
+    # If test set is empty, use train set instead
+    if test_loader is None or len(test_loader) == 0:
+        logger.warning("Test set empty - using training set for evaluation instead")
+        test_loader = loaders.get('train', None)
+        eval_split = 'train'
+    else:
+        eval_split = 'test'
+    
+    if test_loader is None or len(test_loader) == 0:
+        logger.error("No data available for evaluation")
+        return
     
     # Evaluate
-    logger.info("Evaluating on test set...")
-    preds, probs, labels = evaluator.evaluate_split(test_loader, split_name='test')
+    logger.info(f"Evaluating on {eval_split} set...")
+    preds, probs, labels = evaluator.evaluate_split(test_loader, split_name=eval_split)
     
     # Compute metrics
     metrics = evaluator.compute_metrics(preds, probs, labels)
     
     # Print report
-    evaluator.print_metrics_report(metrics, split_name='Test')
+    evaluator.print_metrics_report(metrics, split_name=eval_split.capitalize())
     
     # Generate visualizations
     logger.info("\nGenerating visualizations...")
@@ -321,7 +336,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate satellite model on test set')
     parser.add_argument('--dataset', type=str, default='data/processed/satellite_dataset.csv',
                        help='Path to dataset CSV')
-    parser.add_argument('--model', type=str, default='models/satellite_resnet50.pth',
+    parser.add_argument('--model', type=str, default='models/best_resnet50.pth',
                        help='Path to trained model')
     parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
     
