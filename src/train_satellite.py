@@ -7,7 +7,6 @@ Trains on 64×64 patches to predict lightning occurrence with ≥85% recall targ
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -185,9 +184,8 @@ class SatelliteTrainer:
         train_loader = loaders['train']
         val_loader = loaders['val']
         
-        # Optimizer and scheduler
+        # Optimizer (no scheduler - simpler and more stable)
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
-        scheduler = ReduceLROnPlateau(optimizer, factor=0.5, patience=5)
         
         # Training history
         history = {
@@ -247,9 +245,6 @@ class SatelliteTrainer:
                 if patience_count >= early_stopping_patience:
                     logger.info(f"Early stopping triggered")
                     break
-            
-            # Learning rate scheduling
-            scheduler.step(val_loss)
         
         # Save history
         self.save_history(history)
