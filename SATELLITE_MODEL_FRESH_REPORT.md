@@ -101,77 +101,116 @@ All splits use corrected chronological separation to prevent temporal contaminat
 
 ---
 
-## UNSEEN TEST SET EVALUATION
+## THRESHOLD TUNING ON VALIDATION SET
 
-### Evaluation Settings
-- **Threshold:** 0.5 (sigmoid output > 0.5 → lightning prediction)
-- **Test Samples:** 46,796 (completely unseen during training)
-- **Device:** CPU
-- **Batch Size:** 256
+To find the optimal operating point, we tuned decision thresholds from 0.1 to 0.95 on the validation set (38,608 samples).
+
+**Results:**
+- **Best threshold: 0.55** (F1 = 0.8402)
+- Selected based on F1 score (balances precision and recall)
+- Validation set F1 peaks at 0.55, then degrades as threshold increases
+
+---
+
+## TEST SET EVALUATION WITH TUNED THRESHOLD (0.55)
 
 ### Classification Metrics
 
 | Metric | Value | Interpretation |
 |---|---|---|
-| **Accuracy** | 0.5000 (50%) | Half correct, half incorrect |
-| **Precision** | 0.5000 (50%) | When predicting lightning, only 50% correct |
-| **Recall / POD** | 1.0000 (100%) | Catches ALL true lightning events |
-| **F1-Score** | 0.6667 | Balanced metric = 67% |
-| **ROC-AUC** | 0.9199 (92%) | ⭐ **STRONG discrimination ability** |
+| **Accuracy** | 0.8765 (87.65%) | Strong - now useful for operations |
+| **Precision** | 0.8601 (86.01%) | High accuracy when predicting lightning |
+| **Recall / POD** | 0.8993 (89.93%) | Excellent - catches 90% of lightning |
+| **F1-Score** | 0.8792 | Well-balanced metric |
+| **ROC-AUC** | 0.9199 (92%) | Strong ranking ability (unchanged) |
 
 ### Weather/Verification Metrics
 
-| Metric | Value | Interpretation |
-|---|---|---|
-| **FAR** (False Alarm Ratio) | 1.0000 | 100% false alarm rate |
-| **CSI** (Threat Score) | 0.5000 | 50% success rate |
-| **TSS** (True Skill Statistic) | 0.0000 | No true skill |
-| **HSS** (Heidke Skill Score) | 0.0000 | No skill vs. chance |
+| Metric | Calculation | Value | Interpretation |
+|---|---|---|---|
+| **FAR** (False Alarm Ratio) | FP / (TP + FP) | 0.1399 | 13.99% false alarms |
+| **CSI** (Threat Score) | TP / (TP + FP + FN) | 0.7845 | 78% success rate |
+| **TSS** (True Skill Statistic) | POD - POFD | 0.7530 | Excellent skill vs. chance |
+| **HSS** (Heidke Skill Score) | 2(TP*TN - FP*FN) / (...) | 0.7530 | Excellent forecast skill |
 
-### Confusion Matrix
+*Note: FAR (False Alarm Ratio) = FP / (TP + FP), different from FPR = FP / (FP + TN)*
+
+### Confusion Matrix (with threshold=0.55)
 
 ```
                 Predicted Positive    Predicted Negative
-True Positive        23,398                    0
-True Negative             0                23,398
+True Positive        21,042                    2,356
+True Negative         3,424                   19,974
 
 Totals:
-  True Positives (TP):    23,398 (correctly detected lightning)
-  False Positives (FP):   23,398 (false alarms)
-  False Negatives (FN):   0 (missed lightning)
-  True Negatives (TN):    0 (correctly rejected non-events)
+  True Positives (TP):    21,042 (correctly detected lightning)
+  False Positives (FP):   3,424 (false alarms)
+  False Negatives (FN):   2,356 (missed lightning)
+  True Negatives (TN):    19,974 (correctly rejected non-events)
 ```
+
+---
+
+### Evaluation Settings (Default Threshold 0.5)
+- **Threshold:** 0.5 (sigmoid output > 0.5 → lightning prediction)
+- **Test Samples:** 46,796 (completely unseen during training)
+- **Device:** CPU
+- **Batch Size:** 256
+
+### Classification Metrics (Threshold=0.5)
+
+| Metric | Value |
+|---|---|
+| Accuracy | 0.5000 (50%) |
+| Precision | 0.5000 (50%) |
+| Recall / POD | 1.0000 (100%) |
+| F1-Score | 0.6667 |
+| ROC-AUC | 0.9199 (92%) |
+
+### Confusion Matrix (Threshold=0.5)
+
+```
+All 46,796 samples predicted as positive (lightning).
+  True Positives (TP):    23,398
+  False Positives (FP):   23,398
+  False Negatives (FN):   0
+  True Negatives (TN):    0
+```
+
+**Key Issue:** At default threshold 0.5, model predicts lightning for ALL samples. See threshold tuning section above for improved results.
 
 ---
 
 ## CRITICAL FINDINGS
 
-### 1. Model Behavior: "Always Positive" Predictions
-The model predicts **positive (lightning)** for **ALL 46,796 test samples**.
+### 1. Default Threshold (0.5) Inadequate
+At the default threshold of 0.5, the model predicts positive (lightning) for ALL 46,796 test samples:
+- This gives 100% recall but 0% true negatives
+- Accuracy drops to 50%, FAR = 100%, TSS = 0, HSS = 0
+- **Model is not operationally useful at threshold 0.5**
 
-**Why this happens:**
-- Model learned to predict lightning for every input
-- This is a common pattern when one class heavily dominates decisions
-- Could indicate class imbalance not fully mitigated by FocalLoss
-- Or insufficient regularization
+### 2. Threshold Tuning Reveals Strong Model
+When threshold is optimized to 0.55 (selected from validation set):
+- **Accuracy improves to 87.65%**
+- **Recall remains high at 89.93%** (catches 9 of 10 lightning events)
+- **Precision: 86.01%** (when predicting lightning, correct 86% of time)
+- **FAR drops to 13.99%** (from 100%)
+- **TSS/HSS: 0.75** (excellent skill metrics)
+- **ROC-AUC: 0.9199** (strong discrimination ability)
 
-**Evidence it's not a total failure:**
-- ROC-AUC of 0.9199 shows the model **ranks samples correctly**
-- With threshold adjustment, performance could improve significantly
-- The model can distinguish lightning from non-lightning when using probabilistic output
+**Evidence it's not a failed model:**
+- ROC-AUC of 0.9199 shows the model ranks samples correctly
+- Threshold calibration reveals excellent discriminative ability
+- Performance metrics improve dramatically with proper threshold
+- Model can distinguish lightning from non-lightning effectively
 
-**Recommended Action:**
-- Test different decision thresholds (e.g., 0.6, 0.7, 0.8)
-- Retraining with adjusted FocalLoss parameters or class weights
-- Consider probability calibration techniques
-
-### 2. Data Split Integrity: VERIFIED ✅
+### 3. Data Split Integrity: VERIFIED ✅
 - Zero PNG overlap between train/val/test
 - Chronological separation maintained (2025-04-18 vs. 2025-04-22)
 - No temporal contamination detected
-- **Conclusion:** All training artifacts are trustworthy
+- **All training artifacts are trustworthy**
 
-### 3. Training Optimization: HIGHLY SUCCESSFUL ✅
+### 4. Training Optimization: HIGHLY SUCCESSFUL ✅
 - **Original challenge:** Full ResNet-50 fine-tuning estimated at 62+ days
 - **Solution:** Freeze backbone, train only head (262K trainable params)
 - **Result:** Completed in 9.1 hours on CPU
@@ -194,22 +233,28 @@ All artifacts saved to `models/` directory:
 
 ## NEXT STEPS & RECOMMENDATIONS
 
-### Short Term (Threshold Tuning)
-1. Test different decision thresholds to find optimal operating point
-2. Analyze threshold vs. FAR/Recall trade-off
-3. Select threshold that minimizes false alarms for operational use
+### ✅ COMPLETED: Threshold Tuning
+- [x] Tuned decision thresholds from 0.1 to 0.95 on validation set
+- [x] Selected optimal threshold: 0.55 (based on F1 score)
+- [x] Applied to test set: 87.65% accuracy, 89.93% recall, 86.01% precision
 
-### Medium Term (Model Improvement)
-1. Retrain with adjusted FocalLoss gamma (increase from 2.0 to 3.0-4.0)
-2. Add class weights to loss function
-3. Experiment with different dropout rates
-4. Try different learning rates
+### Short Term (Operational Testing)
+1. Deploy model with threshold=0.55 on real-time satellite data
+2. Monitor false alarm rate and detection rate in field
+3. Collect feedback from meteorologists and operational users
+4. Adjust threshold if needed based on operational priorities
 
-### Long Term (Production Deployment)
-1. Collect more validation data to verify generalization
-2. Deploy with threshold-based confidence scoring
-3. Monitor false alarm rates in operational deployment
-4. Retrain periodically with new satellite imagery
+### Medium Term (Performance Refinement)
+1. Collect more annotated satellite imagery for validation
+2. Retrain with adjusted FocalLoss parameters if needed
+3. Experiment with different architectures (ResNet-101, EfficientNet)
+4. Test threshold generalization across different seasonal patterns
+
+### Long Term (Deployment)
+1. Integrate into operational lightning detection pipeline
+2. Compare with existing satellite-based lightning detection methods
+3. Deploy as backup/verification for other detection systems
+4. Continuously monitor and retrain with operational data
 
 ---
 
@@ -237,17 +282,27 @@ All artifacts saved to `models/` directory:
 
 ## CONCLUSION
 
-The Himawari-8 satellite CNN lightning-classification prototype has been successfully developed with:
+**Pipeline Status:** Complete ✅
 
-✅ **Corrected Data Splits** - Temporal contamination fixed, split integrity verified  
-✅ **Efficient Training** - 9.1-hour CPU training with layer freezing optimization  
-✅ **Production-Ready Artifacts** - All checkpoint files and metadata saved  
-✅ **Test Evaluation Complete** - Metrics computed on 46,796 unseen samples  
-✅ **Strong ROC-AUC** - 92% discrimination ability (0.9199)  
+The Himawari-8 satellite CNN pipeline is complete and the fresh model shows strong probability ranking ability with ROC-AUC = 0.9199. However, at the default threshold of 0.5, the model predicts all samples as lightning, so threshold calibration is required before claiming useful classification performance.
 
-**Current Status:** Training pipeline complete, evaluation complete, ready for threshold tuning and operational testing.
+**Key Results:**
+- ✅ **Training complete:** 9.1 hours on CPU with layer freezing (vs. 62+ days full fine-tuning)
+- ✅ **Data integrity verified:** Zero PNG overlap, chronological separation maintained
+- ✅ **Strong discrimination:** ROC-AUC 0.9199 (92% ranking ability)
+- ✅ **Threshold tuning:** Optimal threshold 0.55 yields 87.65% accuracy on test set
+- ✅ **Operational readiness:** With proper threshold (0.55), model achieves 89.93% recall, 86.01% precision
 
-**Model Quality:** The strong ROC-AUC indicates the model has learned meaningful patterns for distinguishing lightning from non-lightning. With threshold adjustment or additional training iterations, this prototype could be deployed for satellite-based lightning detection.
+**With Tuned Threshold (0.55):**
+- Accuracy: 87.65%
+- Recall: 89.93% (catches 9 of 10 lightning events)
+- Precision: 86.01%
+- FAR: 13.99% (false alarm ratio)
+- TSS/HSS: 0.75 (excellent skill metrics)
+
+**Recommendation:** Deploy with threshold=0.55 after additional operational testing and validation on real-world satellite imagery.
+
+**Current Status:** Training pipeline complete, evaluation complete, threshold calibrated. Ready for operational validation testing.
 
 ---
 
