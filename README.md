@@ -158,6 +158,28 @@ python src/ingest_met_data.py
 # Output: data/processed/lightning_dataset.h5 (5.38M samples)
 ```
 
+### Real Occurrence Dataset (`src/build_occurrence_dataset.py`)
+- **Purpose:** Build a genuine space-time occurrence dataset with real no-strike cells
+- **Approach:** Grid Malaysia, bin time, label cell-time as strike/no-strike from observed logs
+- **No circular features:** Uses location + time-derived features only
+
+```bash
+# Build real occurrence dataset (recommended for honest occurrence modeling)
+python src/build_occurrence_dataset.py --time-freq 1H --negative-ratio 3
+# Output: data/processed/occurrence_dataset.csv
+# Stats:  results/occurrence_dataset_stats.json
+```
+
+### Occurrence Baseline Evaluation (`src/evaluate_occurrence_baselines.py`)
+- **Purpose:** Evaluate a clean tabular baseline on the real occurrence dataset
+- **Metrics:** Minority no-strike precision, recall, F1, PR-AUC
+
+```bash
+# Evaluate clean baseline on chronological train/val/test split
+python src/evaluate_occurrence_baselines.py
+# Output: results/occurrence_baseline_metrics.json
+```
+
 ### Data Loader (`src/lightning_data_loader.py`)
 - **LightningMetadataDataset:** Lazy-loads metadata features from HDF5
 - **Features:** Normalized latitude, longitude, amplitude, strike type code
