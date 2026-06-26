@@ -19,6 +19,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+rng = np.random.default_rng(42)
+
 
 def scan_lightning_csvs(data_root: str = "data/raw/himawari8_pngs"):
     """Scan all lightning CSV files and extract strike information."""
@@ -71,6 +73,7 @@ def create_labeled_dataset(strikes_df, output_path: str = "data/processed/lightn
     logger.info("Creating labeled dataset...")
     
     # Get unique days
+    strikes_df = strikes_df.copy()
     strikes_df['date'] = pd.to_datetime(strikes_df['Date/Time']).dt.date
     unique_days = strikes_df['date'].unique()
     
@@ -83,7 +86,6 @@ def create_labeled_dataset(strikes_df, output_path: str = "data/processed/lightn
     
     # Create positive labels (days WITH lightning)
     positive_labels = []
-    positive_metadata = []
     
     for day in unique_days:
         day_str = str(day)
@@ -102,33 +104,48 @@ def create_labeled_dataset(strikes_df, output_path: str = "data/processed/lightn
     
     logger.info(f"Positive samples (with lightning): {len(positive_labels)}")
     
-    # Create negative samples (days WITHOUT lightning) + random negative regions
-    # For now, create synthetic patches without lightning
+    # Create negative samples from truly no-strike days and realistic metadata values.
+    # This avoids the previous leakage pattern where negatives were encoded with an obvious
+    # amplitude of 0 and strike_type = 'None'.
     days_range = pd.date_range('2023-01-01', '2026-03-31', freq='D')
     days_without_strikes = [str(d.date()) for d in days_range if str(d.date()) not in day_labels]
     
     logger.info(f"Days without lightning records: {len(days_without_strikes)}")
     
-    # Create negative samples by sampling from days without strikes
     negative_labels = []
     
-    # Sample regions within Malaysia bounding box
+    # Sample regions within Malaysia bounding box using a realistic spatial prior
     lat_min, lat_max = 0.85, 6.73  # Peninsular Malaysia
     lon_min, lon_max = 99.6, 104.4
+    
+    positive_latitudes = strikes_df['Latitude'].astype(float).dropna().to_numpy()
+    positive_longitudes = strikes_df['Longitude'].astype(float).dropna().to_numpy()
+    positive_amplitudes = strikes_df['Amplitude'].astype(float).dropna().to_numpy()
+    positive_types = strikes_df['Cloud or Ground'].fillna('Cloud').astype(str)
+    type_choices = ['Cloud', 'Ground']
+    type_probs = positive_types.value_counts(normalize=True).reindex(type_choices, fill_value=0.5).to_numpy()
+    type_probs = type_probs / type_probs.sum()
     
     # Generate negative samples: roughly 3x positive count
     num_negatives = min(len(positive_labels) * 3, len(days_without_strikes) * 10)
     
     for i in range(num_negatives):
+        amp_sample = float(rng.normal(loc=0.0, scale=max(np.std(positive_amplitudes) / 3.0, 1.5)))
+        amp_sample = float(np.clip(amp_sample, -20.0, 20.0))
+        
         negative_labels.append({
             'label': 0,
             'date': days_without_strikes[i % len(days_without_strikes)],
-            'latitude': np.random.uniform(lat_min, lat_max),
-            'longitude': np.random.uniform(lon_min, lon_max),
-            'amplitude': 0,
-            'strike_type': 'None',
+            'latitude': float(rng.normal(loc=np.mean(positive_latitudes), scale=max(np.std(positive_latitudes), 0.5))),
+            'longitude': float(rng.normal(loc=np.mean(positive_longitudes), scale=max(np.std(positive_longitudes), 0.5))),
+            'amplitude': amp_sample,
+            'strike_type': str(rng.choice(type_choices, p=type_probs)),
             'timestamp': 'N/A'
         })
+    
+    logger.info(
+        "Negative sampling uses no-strike dates with Gaussian amplitude values and a realistic cloud/ground strike-type mix"
+    )
     
     logger.info(f"Negative samples (no lightning): {len(negative_labels)}")
     

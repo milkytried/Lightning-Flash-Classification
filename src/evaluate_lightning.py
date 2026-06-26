@@ -1,6 +1,6 @@
 """
 Evaluate lightning detection model on test set.
-Compute recall and other key metrics.
+Compute honest minority-class metrics and PR-AUC.
 """
 
 import torch
@@ -8,7 +8,7 @@ import numpy as np
 from pathlib import Path
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, roc_curve, confusion_matrix
+    roc_auc_score, roc_curve, confusion_matrix, average_precision_score
 )
 import matplotlib.pyplot as plt
 import logging
@@ -28,6 +28,7 @@ def evaluate_lightning_model(
     model_path: str = "../models/lightning_classifier.pth",
     hdf5_path: str = "../data/processed/lightning_dataset.h5",
     device_str: str = 'cpu',
+    feature_mode: str = 'metadata',
 ):
     """Evaluate trained lightning detection model."""
     
@@ -42,13 +43,14 @@ def evaluate_lightning_model(
     
     # Load data
     logger.info("\nLoading test data...")
-    loaders = create_lightning_loaders(hdf5_path, batch_size=512)
+    loaders = create_lightning_loaders(hdf5_path, batch_size=512, feature_mode=feature_mode)
     test_loader = loaders['test']
     logger.info(f"  Test batches: {len(test_loader)}")
     
     # Load model
     logger.info("\nLoading model...")
-    model = LightningMetadataClassifier(input_size=4, hidden_size=256, dropout=0.3)
+    input_size = 4 if feature_mode == 'metadata' else 5
+    model = LightningMetadataClassifier(input_size=input_size, hidden_size=256, dropout=0.3)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     model.eval()
@@ -86,6 +88,7 @@ def evaluate_lightning_model(
     precision = precision_score(all_labels, binary_predictions, zero_division=0)
     recall = recall_score(all_labels, binary_predictions, zero_division=0)
     f1 = f1_score(all_labels, binary_predictions, zero_division=0)
+    pr_auc = average_precision_score((all_labels == 0).astype(int), 1.0 - all_predictions)
     
     # ROC-AUC (need at least one positive and one negative)
     try:
@@ -98,6 +101,7 @@ def evaluate_lightning_model(
     logger.info(f"Recall:    {recall:.4f} {'✅ PASS' if recall >= 0.85 else '❌ FAIL'} (target: ≥0.85)")
     logger.info(f"F1-Score:  {f1:.4f}")
     logger.info(f"ROC-AUC:   {roc_auc:.4f}")
+    logger.info(f"PR-AUC(no-strike): {pr_auc:.4f}")
     
     # Class distribution
     logger.info(f"\nPredicted class distribution:")
@@ -138,9 +142,11 @@ def evaluate_lightning_model(
         'recall': recall,
         'f1_score': f1,
         'roc_auc': roc_auc,
+        'pr_auc_no_strike': pr_auc,
         'pod': pod,
         'far': far,
         'test_samples': len(all_labels),
+        'feature_mode': feature_mode,
     }
     
     return metrics, all_predictions, all_labels

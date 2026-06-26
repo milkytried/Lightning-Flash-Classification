@@ -2,15 +2,18 @@
 
 ## Project Overview
 
-This capstone project develops a metadata-based deep learning classifier to predict cloud-to-ground (CG) lightning occurrence over Malaysia using historical ground lightning records from the Malaysian Meteorological Department (MMD). The model achieves exceptional performance by leveraging spatial coordinates, amplitude, and strike-type metadata from 5.3 million real lightning strike records.
+This capstone project develops a metadata-based deep learning classifier to predict cloud-to-ground (CG) lightning occurrence over Malaysia using historical ground lightning records from the Malaysian Meteorological Department (MMD). The current metadata result is now treated as an honest probe rather than a deployment-ready success because the feature set still mixes strike consequences with the prediction target.
 
 **Key Objectives:**
 - ✅ Ingest and preprocess 4-year MMD lightning strike dataset (5.3M records)
 - ✅ Develop MLP classifier with Focal Loss for lightning detection
-- ✅ **Achieve ≥85% recall on test set → ACHIEVED 100% RECALL**
-- ✅ Document reproducible pipeline
+- Document a reproducible pipeline
+- Investigate label leakage in the metadata negative sampling
+- Report satellite results at a threshold chosen on validation data
 
-**Status:** ✅ **COMPLETE** — Dual-model system: (1) Metadata classifier with 100% recall; (2) Satellite CNN with 92% ROC-AUC on corrected split
+**Status:** Dual-model prototype with a metadata classifier and a satellite CNN. The metadata classifier is not interview-safe as a deployment claim because it uses strike-derived features (amplitude, strike_type) to predict strike occurrence, which is circular. A clean lat/lon/time-only variant is evaluated below. The satellite model is reported with tuned-threshold metrics.
+
+**Leakage reasoning:** amplitude and strike_type are observed only when a strike exists. A model that uses them to predict whether a strike occurred is learning a consequence of the event, not an independent precursor. That is why the metadata probe can look strong while still being scientifically weak.
 
 ### Repository Hygiene
 
@@ -19,19 +22,21 @@ This capstone project develops a metadata-based deep learning classifier to pred
 
 ### Recent Milestones
 
-**Metadata Classifier (2026-05-22):**
-- ✅ Successfully ingested 5.3M real lightning strikes from MMD CSV files (4-year dataset)
-- ✅ Created 581 MB HDF5 dataset with 70/15/15 train/val/test split (3.77M/807K/807K samples)
-- ✅ Trained MLP classifier with Focal Loss
-- ✅ **Achieved 100% recall on test set** (target: ≥85%)
-- ✅ All production files committed to GitHub
+**Metadata Classifier (2026-06-26 — Honest Evaluation):**
+- Ingested 5.3M real lightning strikes from MMD CSV files (4-year dataset)
+- Created 581 MB HDF5 dataset with 70/15/15 train/val/test splits
+- **ISSUE IDENTIFIED:** Negatives are still synthetic (generated amplitude and generated strike-type mix), which remains separable from real strike records
+- **LEAKAGE:** Using amplitude and strike_type to predict lightning is circular — these features only exist IF a strike was detected
+- **RETRAINING:** Models under evaluation:
+  1. Leaky model (amplitude + strike_type): Shows how ground-truth features give false confidence
+  2. Clean model (lat/lon/time only): Honest baseline using only genuinely independent features
+The detailed leakage explanation is summarized below in the performance notes and the metadata evaluation section.
 
 **Satellite CNN (Himawari-8) (2026-06-05):**
-- ✅ Fresh training from scratch using corrected chronological split
-- ✅ Layer freezing optimization: 9.1-hour CPU training (vs. 62+ days for full fine-tuning)
-- ✅ Test evaluation on 46,796 unseen satellite patches
-- ✅ **Strong ROC-AUC: 0.9199 (92% discrimination ability)**
-- ✅ Data split integrity verified: Zero PNG leakage
+- Fresh training from scratch using a corrected chronological split
+- Layer freezing optimization reduced training time to 9.1 hours on CPU
+- Test evaluation on 46,796 unseen satellite patches
+- Reported ROC-AUC 0.9199 and a tuned operating point of 87.65% accuracy, 86.01% precision, 89.93% recall, and 0.8792 F1 at threshold 0.55
 
 ---
 
@@ -51,14 +56,11 @@ pip install -r requirements.txt
 ### 2. Verify Installation
 
 ```bash
-# Run unit tests
-pytest tests/ -v --cov=src/
+# Run the metadata and satellite smoke tests
+python -m pytest tests -q
 
-# Test model forward pass
-python src/model_arch.py
-
-# Test data loader
-python src/data_loader.py
+# Run a lightweight demo over the current test split
+python demo_inference.py
 ```
 
 ### 3. Project Structure
@@ -67,17 +69,14 @@ python src/data_loader.py
 Project-Capstone/
 ├── src/
 │   ├── __init__.py
-│   ├── ingest_met_data.py       # Ingest 5.3M MMD lightning CSV records → HDF5
-│   ├── lightning_data_loader.py # HDF5 lazy-loading for metadata features
+│   ├── ingest_met_data.py       # Ingest MMD lightning CSV records into HDF5
+│   ├── lightning_data_loader.py # Lazy-loading for metadata features
 │   ├── lightning_model.py       # MLP classifier + Focal Loss
-│   ├── train_lightning.py       # Training loop with early stopping
-│   ├── evaluate_lightning.py    # Full test set evaluation
-│   ├── quick_eval.py            # Fast eval on 10K test sample subset
-│   ├── preprocessing.py         # Legacy satellite image preprocessing
-│   ├── data_loader.py           # Legacy HDF5 dataset loader
-│   ├── model_arch.py            # Legacy ResNet-50 architecture
-│   ├── train.py                 # Legacy training loop
-│   └── inference.py             # Legacy inference API
+│   ├── train_lightning.py       # Metadata training loop with early stopping
+│   ├── evaluate_lightning.py    # Metadata test-set evaluation
+│   ├── himawari_data_loader.py  # Satellite patch loader for the CNN
+│   ├── train_satellite.py       # Satellite CNN training driver
+│   └── model_arch.py            # ResNet-50-based satellite model
 ├── data/
 │   ├── raw/                     # Raw MMD CSV + Himawari-8 PNGs (gitignored)
 │   │   ├── himawari8_pngs/      # 4-year PNG structure (2023-2026)
@@ -191,7 +190,7 @@ output = model(torch.randn(512, 4))
 - **Orchestrator:** Adam optimizer + ReduceLROnPlateau scheduler + Early stopping
 - **Duration:** ~1h 50m on CPU (512 batch, 3.77M train samples)
 - **Convergence:** Stopped at epoch ~12 via early stopping
-- **Loss trajectory:** 0.1122 → 0.0000 (excellent convergence)
+- **Loss trajectory:** 0.1122 → 0.0000 (rapid convergence)
 
 ```bash
 # Train metadata-based model
@@ -199,25 +198,20 @@ python src/train_lightning.py
 # Output: models/lightning_classifier.pth (0.2 MB)
 ```
 
-### Evaluation (`src/quick_eval.py`)
-- **Fast evaluation** on 10K test sample subset (≤1 min)
-- **Metrics:** Accuracy, Precision, Recall, F1, ROC-AUC
-- **Result:** ✅ **100% Recall** (exceeds 85% target)
+### Evaluation (`src/evaluate_lightning.py`)
+- **Full evaluation** on the metadata test split
+- **Metrics:** Minority-class precision, recall, F1, PR-AUC, plus ROC-AUC/POD/FAR for reference
+- **Note:** The metadata result should be interpreted cautiously because the feature set is still circular.
 
 ```bash
-# Quick evaluation on 10K samples
-python src/quick_eval.py
-# Output:
-# Accuracy:  1.0000 (100.00%)
-# Precision: 1.0000
-# Recall:    1.0000 ✅ PASS
-# F1-Score:  1.0000
+# Full metadata evaluation
+python src/evaluate_lightning.py
 ```
 
 ### Full Evaluation (`src/evaluate_lightning.py`)
 - **Full test set** evaluation on all 807K test samples
-- **Metrics:** Accuracy, Precision, Recall, F1, ROC-AUC, POD, FAR
-- **Note:** Slow on CPU; use quick_eval.py for rapid feedback
+- **Metrics:** Minority-class precision, recall, F1, PR-AUC, ROC-AUC, POD, FAR
+- **Note:** Slow on CPU; use `demo_inference.py` for a quick smoke test instead
 
 ```bash
 # Full evaluation (CPU: ~10-15 min expected, may timeout)
@@ -233,7 +227,7 @@ python src/evaluate_lightning.py
 - [x] Parse 5.3M lightning strike records
 - [x] Create 581 MB HDF5 dataset
 - [x] Generate 70/15/15 train/val/test split (3.77M/807K/807K)
-- [x] Handle extreme class imbalance (99.84% positive)
+- [x] Document the extreme class imbalance (99.84% positive)
 
 **To ingest MMD data:**
 ```bash
@@ -246,7 +240,7 @@ python src/ingest_met_data.py
 - [x] Design metadata-based MLP classifier
 - [x] Implement Focal Loss for class imbalance
 - [x] Train on 3.77M samples
-- [x] Converge excellently in ~1h 50m
+- [x] Converge in ~1h 50m
 - [x] Early stop at epoch ~12
 
 **To train model:**
@@ -256,15 +250,12 @@ python src/train_lightning.py
 ```
 
 ### ✅ Phase 3: Evaluation (COMPLETE)
-- [x] Achieve 100% recall on test set (exceeds 85% target)
-- [x] Validate metrics (Accuracy, Precision, F1, ROC-AUC)
+- [x] Report honest minority-class metrics for the metadata probe and clean probe
+- [x] Validate metrics on the held-out test split
 - [x] Generate evaluation report
 
 **To evaluate:**
 ```bash
-# Quick eval (10K samples, <1 min)
-python src/quick_eval.py
-
 # Full eval (807K test samples, CPU: slow)
 python src/evaluate_lightning.py
 ```
@@ -275,13 +266,8 @@ python src/evaluate_lightning.py
 - [x] Verify no sensitive data leaked
 - [x] Ready for deployment
 
-**GitHub Commit:**
-```
-[main 200a3e7] Add lightning detection on real Met Dept data: 5.3M strikes (100% recall)
-5 files changed, 735 insertions(+)
-create mode 100644 src/evaluate_lightning.py
-create mode 100644 src/ingest_met_data.py
-create mode 100644 src/lightning_data_loader.py
+**Repository Note:**
+The metadata results above are retrain probes, not deployment claims. The clean lat/lon/time-only variant is the honest baseline; amplitude and strike_type are strike-derived fields and therefore circular for occurrence prediction.
 create mode 100644 src/lightning_model.py
 create mode 100644 src/train_lightning.py
 ```
@@ -320,16 +306,16 @@ Convolutional neural network for satellite-based lightning detection using Himaw
 
 ### Test Evaluation Results (Satellite CNN)
 
-**Classification Metrics:**
+**Classification Metrics (threshold tuned on validation set):**
 | Metric | Value | Interpretation |
 |--------|-------|---|
-| Accuracy | 50% | Half correct predictions |
-| Precision | 50% | When predicting lightning, 50% correct |
-| Recall/POD | 100% | Catches all true lightning events |
-| F1-Score | 0.6667 | Balanced metric |
-| **ROC-AUC** | **0.9199** | ⭐ **92% discrimination ability** |
+| Accuracy | 87.65% | Correct predictions at the tuned operating point |
+| Precision | 86.01% | Fraction of predicted lightning patches that were correct |
+| Recall/POD | 89.93% | Fraction of true lightning patches recovered |
+| F1-Score | 0.8792 | Harmonic mean of precision and recall |
+| **ROC-AUC** | **0.9199** | Ranking quality independent of threshold |
 
-**Key Finding:** Strong ROC-AUC indicates model can rank lightning vs. non-lightning correctly. With threshold adjustment, performance improves significantly.
+**Key Finding:** The model’s ranking quality is strong, but the default 0.5 threshold is too conservative; the tuned threshold of 0.55 gives a more balanced operating point.
 
 ### Satellite CNN Milestones (COMPLETE)
 
@@ -366,20 +352,12 @@ Convolutional neural network for satellite-based lightning detection using Himaw
 
 Run all tests:
 ```bash
-pytest tests/ -v --cov=src/
+python -m pytest tests -q
 ```
 
-Run specific test:
+Run a metadata smoke test:
 ```bash
-pytest tests/test_model.py -v
-```
-
-Expected output:
-```
-tests/test_model.py::test_resnet50_initialization PASSED
-tests/test_model.py::test_forward_pass_shape PASSED
-tests/test_model.py::test_focal_loss_computation PASSED
-...
+python -m pytest tests/test_metadata_pipeline.py -q
 ```
 
 ---
@@ -416,11 +394,18 @@ python src/ingest_met_data.py
 # Requires MMD CSV files in: data/raw/mmd_lightning/
 ```
 
+If the raw MMD files are unavailable, the repository can still be exercised with the shipped demo script once the processed HDF5 and model checkpoint exist. To obtain the full dataset, request the MMD CSV export or place the files under data/raw/mmd_lightning/ before running ingestion.
+
 ### Model File Not Found (`lightning_classifier.pth`)
 ```bash
 # Run training to generate model
 python src/train_lightning.py
 # Output: models/lightning_classifier.pth (0.2 MB)
+```
+
+For a one-command smoke test once the data and weights are present:
+```bash
+python demo_inference.py
 ```
 
 ### Import Errors or Missing Dependencies
@@ -431,7 +416,7 @@ pip install -r requirements.txt --force-reinstall
 
 ### Slow Evaluation on CPU
 - Full test evaluation on 807K samples is slow on CPU
-- **Workaround:** Use `quick_eval.py` for rapid feedback on 10K samples
+- **Workaround:** Use `demo_inference.py` for a quick smoke test once the processed dataset and model weights are present
 - **Alternative:** Enable GPU acceleration if available
 
 ### PyTorch Compatibility Issues
@@ -451,9 +436,7 @@ pip install torch==2.12.0 torchvision==0.27.0 --index-url https://download.pytor
 
 ## Documentation
 
-- **PRD:** `_bmad-output/planning-artifacts/PRD.md`
-- **Architecture:** `_bmad-output/planning-artifacts/ARCHITECTURE.md`
-- **Product Brief:** `_bmad-output/planning-artifacts/product-brief.md`
+- **Project notes:** [Project Capstone](Project%20Capstone) (repository root)
 
 ---
 
@@ -478,17 +461,28 @@ pip install torch==2.12.0 torchvision==0.27.0 --index-url https://download.pytor
 
 ## Performance Summary
 
-| Metric | Result | Target | Status |
-|--------|--------|--------|--------|
-| **Recall** | 100% | ≥85% | ✅ **PASS** |
-| **Precision** | 100% | - | ✅ **EXCELLENT** |
-| **Accuracy** | 100% | - | ✅ **EXCELLENT** |
-| **F1-Score** | 100% | - | ✅ **EXCELLENT** |
-| **Training Time** | ~1h 50m | - | ✅ **EFFICIENT** |
-| **Model Size** | 0.2 MB | - | ✅ **COMPACT** |
-| **Dataset** | 5.3M samples | - | ✅ **COMPREHENSIVE** |
+| Metric | Result | Notes |
+|--------|--------|--------|
+| Metadata no-strike precision | 1.0000 | Retrained probe on the current synthetic-negative feature set |
+| Metadata no-strike recall | 1.0000 | Same probe |
+| Metadata no-strike F1 | 1.0000 | Same probe |
+| Metadata no-strike PR-AUC | 1.0000 | Same probe |
+| Clean lat/lon/time no-strike precision | 1.0000 | Much weaker, because the circular strike-derived features are removed |
+| Clean lat/lon/time no-strike recall | 0.1087 | Same probe |
+| Clean lat/lon/time no-strike F1 | 0.1961 | Same probe |
+| Clean lat/lon/time no-strike PR-AUC | 0.2966 | Same probe |
+| Satellite ROC-AUC | 0.9199 | Good ranking performance independent of threshold |
+| Satellite accuracy at tuned threshold | 87.65% | Threshold 0.55 selected on validation data |
+| Satellite precision | 86.01% | At the tuned threshold |
+| Satellite recall | 89.93% | At the tuned threshold |
+| Satellite F1 | 0.8792 | At the tuned threshold |
+
+Metadata artifact files from the final pass:
+- `results/metadata_honest_probe_metrics.json`
+- `models/lightning_classifier_metadata_probe.pth`
+- `models/lightning_classifier_clean_probe.pth`
 
 ---
 
-**Last Updated:** 2026-05-22  
-**Status:** ✅ **PROJECT COMPLETE** — Model trained on real Met Dept data achieving 100% recall (exceeds 85% target); all production code committed to GitHub
+**Last Updated:** 2026-06-26  
+**Status:** The repository now documents the metadata leakage concern and reports the satellite model at its tuned operating point rather than at the default 0.5 threshold.
