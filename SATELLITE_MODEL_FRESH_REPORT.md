@@ -1,7 +1,7 @@
 # HIMAWARI-8 SATELLITE CNN LIGHTNING CLASSIFICATION - FRESH MODEL REPORT
 
 **Report Generated:** 2026-06-05 20:53:00  
-**Status:** ✅ COMPLETE - Production Ready
+**Status:** ✅ COMPLETE - Submission-ready Research Prototype
 
 ---
 
@@ -12,7 +12,7 @@ The Himawari-8 satellite CNN lightning-classification prototype has been success
 **Key Achievements:**
 - ✅ Training completed in 9.1 hours (vs. 62+ days projected for full fine-tuning)
 - ✅ Data split integrity verified: Zero PNG overlap between train/val/test
-- ✅ All training artifacts saved and production-ready
+- ✅ All training artifacts saved and archived
 - ✅ Test evaluation completed on 46,796 unseen samples
 - ✅ Strong ROC-AUC of 0.9199 (92% discrimination ability)
 
@@ -224,7 +224,7 @@ All artifacts saved to `models/` directory:
 
 | File | Size | Purpose |
 |---|---|---|
-| `satellite_resnet50_fresh.pth` | 91 MB | Model checkpoint (production ready) |
+| `satellite_resnet50_fresh.pth` | 91 MB | Model checkpoint (research prototype) |
 | `satellite_training_history_fresh.json` | - | Epoch-wise training metrics |
 | `model_metadata_fresh.json` | - | Complete metadata with split verification |
 | `test_evaluation_fresh.json` | - | Test set metrics and confusion matrix |
@@ -291,7 +291,7 @@ The Himawari-8 satellite CNN pipeline is complete and the fresh model shows stro
 - ✅ **Data integrity verified:** Zero PNG overlap, chronological separation maintained
 - ✅ **Strong discrimination:** ROC-AUC 0.9199 (92% ranking ability)
 - ✅ **Threshold tuning:** Optimal threshold 0.55 yields 87.65% accuracy on test set
-- ✅ **Operational readiness:** With proper threshold (0.55), model achieves 89.93% recall, 86.01% precision
+- ✅ **Research readiness:** With proper threshold (0.55), model achieves 89.93% recall, 86.01% precision on held-out test set
 
 **With Tuned Threshold (0.55):**
 - Accuracy: 87.65%
@@ -300,9 +300,9 @@ The Himawari-8 satellite CNN pipeline is complete and the fresh model shows stro
 - FAR: 13.99% (false alarm ratio)
 - TSS/HSS: 0.75 (excellent skill metrics)
 
-**Recommendation:** Deploy with threshold=0.55 after additional operational testing and validation on real-world satellite imagery.
+**Recommendation:** Test with threshold=0.55 on satellite data from additional dates and geographic regions to verify generalization and confirm model robustness.
 
-**Current Status:** Training pipeline complete, evaluation complete, threshold calibrated. Ready for operational validation testing.
+**Current Status:** Training pipeline complete, evaluation complete, threshold calibrated. Research prototype ready for external validation studies.
 
 ---
 

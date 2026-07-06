@@ -5,16 +5,20 @@ env/
 # Data (too large)
 data/raw/
 data/processed/*.h5
+# Local experiment artifacts
+data/**
 
 # Model weights
 models/*.pth
 models/*.h5
+models/**
 
 # Cache & compiled
 __pycache__/
 *.pyc
 *.egg-info/
 .pytest_cache/
+.coverage
 
 # Logs
 *.log
@@ -37,9 +41,22 @@ events.out.tfevents.*
 results/plots/
 results/*.json
 results/*.png
+report/**
+!report/
+!report/README.md
+!report/audit/
+!report/audit/*.md
+!report/final_summary/
+!report/final_summary/*.md
+!report/qa_prep/
+!report/qa_prep/*.md
+!report/figures/README.md
 
 # Notebooks
 .ipynb_checkpoints/
+
+# Scratch analyses
+explain_99_84_percent.py
 
 # BMAD workspace artifacts
 _bmad/

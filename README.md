@@ -167,7 +167,7 @@ python src/ingest_met_data.py
 # Build real occurrence dataset (recommended for honest occurrence modeling)
 python src/build_occurrence_dataset.py --time-freq 1H --negative-ratio 3
 # Output: data/processed/occurrence_dataset.csv
-# Stats:  results/occurrence_dataset_stats.json
+# Stats: results/occurrence_dataset_stats.json (generated locally, not committed; requires the MMD dataset)
 ```
 
 ### Occurrence Baseline Evaluation (`src/evaluate_occurrence_baselines.py`)
@@ -177,7 +177,7 @@ python src/build_occurrence_dataset.py --time-freq 1H --negative-ratio 3
 ```bash
 # Evaluate clean baseline on chronological train/val/test split
 python src/evaluate_occurrence_baselines.py
-# Output: results/occurrence_baseline_metrics.json
+# Output: results/occurrence_baseline_metrics.json (generated locally, not committed; requires the MMD dataset)
 ```
 
 ### Data Loader (`src/lightning_data_loader.py`)
@@ -483,12 +483,14 @@ pip install torch==2.12.0 torchvision==0.27.0 --index-url https://download.pytor
 
 ## Performance Summary
 
+The metadata probe rows below are an honest leakage demonstration, not a headline result. They are generated locally from the MMD dataset and are not committed artifacts.
+
 | Metric | Result | Notes |
 |--------|--------|--------|
-| Metadata no-strike precision | 1.0000 | Retrained probe on the current synthetic-negative feature set |
-| Metadata no-strike recall | 1.0000 | Same probe |
-| Metadata no-strike F1 | 1.0000 | Same probe |
-| Metadata no-strike PR-AUC | 1.0000 | Same probe |
+| Leaky probe — NOT a valid result (uses strike-derived features): Metadata no-strike precision | 1.0000 | Retrained probe on the current synthetic-negative feature set |
+| Leaky probe — NOT a valid result (uses strike-derived features): Metadata no-strike recall | 1.0000 | Same probe |
+| Leaky probe — NOT a valid result (uses strike-derived features): Metadata no-strike F1 | 1.0000 | Same probe |
+| Leaky probe — NOT a valid result (uses strike-derived features): Metadata no-strike PR-AUC | 1.0000 | Same probe |
 | Clean lat/lon/time no-strike precision | 1.0000 | Much weaker, because the circular strike-derived features are removed |
 | Clean lat/lon/time no-strike recall | 0.1087 | Same probe |
 | Clean lat/lon/time no-strike F1 | 0.1961 | Same probe |
@@ -499,7 +501,7 @@ pip install torch==2.12.0 torchvision==0.27.0 --index-url https://download.pytor
 | Satellite recall | 89.93% | At the tuned threshold |
 | Satellite F1 | 0.8792 | At the tuned threshold |
 
-Metadata artifact files from the final pass:
+Metadata artifact files from the final pass (generated locally, not committed; requires the MMD dataset):
 - `results/metadata_honest_probe_metrics.json`
 - `models/lightning_classifier_metadata_probe.pth`
 - `models/lightning_classifier_clean_probe.pth`

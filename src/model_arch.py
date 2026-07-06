@@ -20,7 +20,7 @@ class LightningResNet50(nn.Module):
     - Dropout for regularization
     """
     
-    def __init__(self, num_input_channels=3, num_classes=1, dropout_rate=0.5):
+    def __init__(self, num_input_channels=3, num_classes=1, dropout_rate=0.5, pretrained=True):
         """
         Args:
             num_input_channels (int): 3 (IR, WV, VIS) or other combinations
@@ -29,8 +29,14 @@ class LightningResNet50(nn.Module):
         """
         super(LightningResNet50, self).__init__()
         
-        # Load pretrained ResNet-50
-        self.backbone = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+        # Load pretrained ResNet-50 when available; otherwise fall back to a random init.
+        if pretrained:
+            try:
+                self.backbone = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+            except Exception:
+                self.backbone = models.resnet50(weights=None)
+        else:
+            self.backbone = models.resnet50(weights=None)
         
         # Adapt first conv layer for multi-channel input
         if num_input_channels != 3:
