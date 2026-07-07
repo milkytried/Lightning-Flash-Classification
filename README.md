@@ -1,19 +1,18 @@
-# Lightning Flash Classification Using Real Malaysian Meteorological Data
+# Lightning flash classification using Himawari-8 satellite imagery
 
 ## Project Overview
 
-This capstone project develops a metadata-based deep learning classifier to predict cloud-to-ground (CG) lightning occurrence over Malaysia using historical ground lightning records from the Malaysian Meteorological Department (MMD). The current metadata result is now treated as an honest probe rather than a deployment-ready success because the feature set still mixes strike consequences with the prediction target.
+This capstone project’s main validated result is a Himawari-8 satellite CNN that classifies lightning patches using image pixels only. The metadata model is kept in the repository as a baseline and a leakage lesson learned, not as a deployment claim. In particular, `amplitude` and `strike_type` are strike-derived features, so they are not valid deployment inputs for predicting whether a strike will occur.
 
 **Key Objectives:**
-- ✅ Ingest and preprocess 4-year MMD lightning strike dataset (5.3M records)
-- ✅ Develop MLP classifier with Focal Loss for lightning detection
-- Document a reproducible pipeline
-- Investigate label leakage in the metadata negative sampling
-- Report satellite results at a threshold chosen on validation data
+- ✅ Build a satellite-only CNN using Himawari-8 image patches
+- ✅ Keep a leakage-aware metadata baseline for comparison only
+- ✅ Document a reproducible pipeline and honest evaluation story
+- ✅ Preserve the validated satellite metrics from the corrected chronological split
 
-**Status:** Dual-model prototype with a metadata classifier and a satellite CNN. The metadata classifier is not interview-safe as a deployment claim because it uses strike-derived features (amplitude, strike_type) to predict strike occurrence, which is circular. A clean lat/lon/time-only variant is evaluated below. The satellite model is reported with tuned-threshold metrics.
+**Status:** Satellite-first research prototype. The Himawari-8 CNN is the headline result; the metadata model is retained only as a baseline / leakage demonstration, and the clean lat/lon/time-only variant is the honest but weak comparator.
 
-**Leakage reasoning:** amplitude and strike_type are observed only when a strike exists. A model that uses them to predict whether a strike occurred is learning a consequence of the event, not an independent precursor. That is why the metadata probe can look strong while still being scientifically weak.
+**Leakage reasoning:** `amplitude` and `strike_type` are observed only when a strike exists. A model that uses them to predict whether a strike occurred is learning a consequence of the event, not an independent precursor. That is why the metadata probe can look strong while still being scientifically weak.
 
 ### Repository Hygiene
 
@@ -56,12 +55,37 @@ pip install -r requirements.txt
 ### 2. Verify Installation
 
 ```bash
-# Run the metadata and satellite smoke tests
+# Run the test suite
 python -m pytest tests -q
 
-# Run a lightweight demo over the current test split
+# Run the quick demo
 python demo_inference.py
 ```
+
+### Demo Commands
+
+The repository contains two different inference paths:
+
+```bash
+# Main result: satellite CNN evaluation on the held-out test split
+python eval_test_fresh.py
+
+# Threshold tuning used for the final satellite report
+python tune_threshold.py
+
+# Quick smoke test for the metadata baseline
+python demo_inference.py
+```
+
+`python demo_inference.py` is a local smoke test, not the headline result. It requires:
+- `data/processed/lightning_dataset.h5`
+- `models/lightning_classifier.pth`
+
+The main satellite result requires:
+- `data/processed/satellite_dataset.csv`
+- `models/satellite_resnet50_fresh.pth`
+
+If those files are absent because they are gitignored or generated locally, run the relevant preprocessing or training script first.
 
 ### 3. Project Structure
 
@@ -106,9 +130,9 @@ Project-Capstone/
 
 ---
 
-## Component 1: Lightning Metadata Classifier
+## Baseline / Leakage Lesson Learned: Lightning Metadata Classifier
 
-Metadata-based deep learning model for lightning occurrence prediction using real strike records from the Malaysian Meteorological Department.
+Metadata-based deep learning model for lightning occurrence prediction using real strike records from the Malaysian Meteorological Department. This is included as a baseline and leakage lesson, not as the main FYP result.
 
 ### Configuration (Lightning Metadata Model)
 
@@ -223,7 +247,7 @@ python src/train_lightning.py
 ### Evaluation (`src/evaluate_lightning.py`)
 - **Full evaluation** on the metadata test split
 - **Metrics:** Minority-class precision, recall, F1, PR-AUC, plus ROC-AUC/POD/FAR for reference
-- **Note:** The metadata result should be interpreted cautiously because the feature set is still circular.
+- **Note:** The metadata result should be interpreted cautiously because `amplitude` and `strike_type` are strike-derived features.
 
 ```bash
 # Full metadata evaluation
@@ -339,6 +363,23 @@ Convolutional neural network for satellite-based lightning detection using Himaw
 
 **Key Finding:** The model’s ranking quality is strong, but the default 0.5 threshold is too conservative; the tuned threshold of 0.55 gives a more balanced operating point.
 
+### Baseline Comparison
+
+| Model | Deployment Safety | Why |
+|---|---|---|
+| Metadata model: lat, lon, amplitude, strike_type | Not deployment-safe | `amplitude` and `strike_type` are strike-derived, so the model is circular for occurrence prediction |
+| Clean metadata baseline: lat, lon, time only | Honest but weak | Removes the circular features, so it is a fairer baseline, but it is not the headline result |
+| Satellite CNN: Himawari-8 image-only model | Main result | Uses only satellite pixels and is the strongest FYP contribution |
+
+## Limitations
+
+This project is a capstone research prototype, not an operational warning system.
+
+- The satellite experiment uses a limited set of source PNGs, with training on 2025-04-18 data and validation/test on 2025-04-22 data.
+- The geographic scope is Malaysia-only, so the model has not been validated for other regions.
+- The lightning labels come from a single provider, the Malaysian Meteorological Department.
+- More testing across seasons, weather regimes, and years is needed before any broader operational claim.
+
 ### Satellite CNN Milestones (COMPLETE)
 
 **Phase 1: Diagnosis**
@@ -417,6 +458,8 @@ python src/ingest_met_data.py
 ```
 
 If the raw MMD files are unavailable, the repository can still be exercised with the shipped demo script once the processed HDF5 and model checkpoint exist. To obtain the full dataset, request the MMD CSV export or place the files under data/raw/mmd_lightning/ before running ingestion.
+
+For the satellite result, the equivalent local requirement is `data/processed/satellite_dataset.csv` plus `models/satellite_resnet50_fresh.pth`.
 
 ### Model File Not Found (`lightning_classifier.pth`)
 ```bash

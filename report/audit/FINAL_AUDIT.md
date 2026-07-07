@@ -237,7 +237,7 @@ Confusion Matrix:
 - ✅ Complete documentation provided
 
 ### Potential Limitations & Caveats
-- Model trained on 11 satellite images over 4 days (small dataset)
+- Model trained on 11 source satellite PNGs, with training on 2025-04-18 and validation/test on 2025-04-22 (small dataset)
 - Limited to Malaysian airspace (geographic specificity)
 - Single lightning detection provider (potential systematic bias)
 - No cross-validation with other satellite providers

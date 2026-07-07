@@ -11,9 +11,10 @@
 **Start here if you're new to this project:**
 
 1. **For Overview:** Read `final_summary/FINAL_PROJECT_SUMMARY.md` (15 min read)
-2. **For Technical Details:** Read `../SATELLITE_MODEL_FRESH_REPORT.md` (full report)
-3. **For Q&A Prep:** Read `qa_prep/PANEL_QA_PREP.md` (25 Q&As with answers)
-4. **For Audit:** Read `audit/FINAL_AUDIT.md` (verification checklist)
+2. **For Viva Prep:** Read `final_summary/FYP_VIVA_SUMMARY.md` (short oral-exam summary)
+3. **For Technical Details:** Read `../SATELLITE_MODEL_FRESH_REPORT.md` (full report)
+4. **For Q&A Prep:** Read `qa_prep/PANEL_QA_PREP.md` (25 Q&As with answers)
+5. **For Audit:** Read `audit/FINAL_AUDIT.md` (verification checklist)
 
 ---
 
@@ -23,6 +24,7 @@
 report/
 ├── README.md                          (this file)
 ├── final_summary/
+│   ├── FYP_VIVA_SUMMARY.md            (short viva-ready summary)
 │   └── FINAL_PROJECT_SUMMARY.md       (comprehensive project overview, 17 sections)
 ├── figures/
 │   ├── final_confusion_matrix_tuned.png

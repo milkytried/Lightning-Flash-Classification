@@ -30,7 +30,7 @@ The satellite CNN is the primary research focus, using raw Himawari-8 satellite 
 
 **Constraints:**
 - CPU-only training (no GPU available)
-- Limited labeled data (11 satellite images, 4-day period)
+- Limited labeled data (11 source satellite PNGs, with training on 2025-04-18 and validation/test on 2025-04-22)
 - Single provider (Malaysian Meteorological Department)
 
 ---
@@ -486,7 +486,7 @@ Answer: 0.75 (0.0 = no better than chance, 1.0 = perfect)
 
 ### Dataset Limitations
 1. **Small Geographic Scope:** Only Malaysian airspace (may not generalize globally)
-2. **Limited Time Period:** Only 11 satellite images over 4 days (single weather regime)
+2. **Limited Time Period:** Only 11 source satellite PNGs across 2025-04-18 training and 2025-04-22 validation/test splits (single weather regime)
 3. **Single Provider:** Only one lightning data source (potential systematic bias)
 4. **Limited Size:** 481K patches small for modern deep learning
 
