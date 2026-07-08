@@ -165,9 +165,10 @@ def assign_slots(strikes: pd.DataFrame, nowcast_minutes: int = 0) -> pd.DataFram
 
 def chronological_split(frame_time: pd.Timestamp) -> str:
     ts = pd.Timestamp(frame_time).tz_convert("UTC")
-    if ts.year <= 2024:
+    date = ts.date()
+    if date <= pd.Timestamp("2024-12-31").date():
         return "train"
-    if ts.year == 2025 and ts.month <= 6:
+    if date <= pd.Timestamp("2025-03-01").date():
         return "val"
     return "test"
 
