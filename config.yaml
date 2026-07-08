@@ -1,55 +1,78 @@
-# Lightning Flash Classification Config
-# Author: Amelia (Developer)
-# Last Modified: 2026-05-10
+# Lightning Flash Classification — Configuration
+# Author: Chai Wen Cheng
+# Project: CNN-based classification of cloud-to-ground lightning using Himawari-8
+#
+# This config documents the ACTUAL settings used for the headline result
+# (the Himawari-8 satellite CNN). The metadata MLP is a separate leakage-aware
+# baseline and uses the settings noted in its own section at the bottom.
 
 project:
   name: "Lightning Flash Classification"
-  description: "CNN-based nowcasting of CG lightning using Himawari-8"
+  description: "Satellite CNN for cloud-to-ground lightning classification (Himawari-8)"
   version: "1.0"
 
+# ---------------------------------------------------------------------------
+# HEADLINE MODEL: Himawari-8 satellite CNN (image-pixels-only classifier)
+# ---------------------------------------------------------------------------
 data:
-  raw_himawari_dir: "data/raw/himawari8/"
-  raw_mmd_csv: "data/raw/mmd_lightning.csv"
-  processed_dataset: "data/processed/dataset.h5"
-  region_bbox: [100.0, 120.0, -5.0, 15.0]  # [lon_min, lon_max, lat_min, lat_max]
-  lead_time_window: [0, 60]  # minutes
-  
+  # NOTE: raw data and processed artifacts are gitignored (see .gitignore).
+  # Regenerate locally with the ingestion/preprocessing scripts before training.
+  raw_himawari_dir: "data/raw/himawari8_pngs/"
+  raw_mmd_csv: "data/raw/mmd_lightning/"
+  satellite_dataset_csv: "data/processed/satellite_dataset.csv"
+  region_bbox: [100.0, 120.0, -5.0, 15.0]   # [lon_min, lon_max, lat_min, lat_max]
+
 preprocessing:
-  patch_size: 64  # pixels
-  num_channels: 3  # IR, WV, VIS (or subset)
-  brightness_temp_threshold: 290.0  # K; cloud masking
-  downsample_ratio: 0.2  # keep 20% of negatives
-  augmentation_enabled: true
+  patch_size: 64          # pixels (64x64 RGB patches)
+  num_channels: 3         # RGB satellite patch
+  normalization: "imagenet"   # ImageNet mean/std (ResNet-50 backbone)
+  # Split is chronological, at the source-PNG level, to prevent leakage:
+  #   train = 2025-04-18 PNGs, val/test = 2025-04-22 PNGs (no PNG in two splits)
+
+model:
+  architecture: "ResNet50"   # LightningResNet50: frozen backbone + custom head
+  pretrained: true
+  freeze_backbone: true      # only the classifier head is trained (~262K params)
+  num_input_channels: 3
+  num_classes: 1             # binary, sigmoid output
+  dropout: 0.5
 
 train:
-  batch_size: 16  # RTX 3050 constraint
-  max_epochs: 100
+  batch_size: 32             # train
+  eval_batch_size: 256       # val / test
+  max_epochs: 15
   learning_rate: 0.001
   optimizer: "Adam"
   loss_function: "FocalLoss"
-  loss_alpha: 0.25  # Focal Loss parameter
+  loss_alpha: 0.25
   loss_gamma: 2.0
-  lr_scheduler: "ReduceLROnPlateau"
-  lr_scheduler_factor: 0.5
-  lr_scheduler_patience: 5
-  early_stopping_patience: 10
   gradient_clip_norm: 1.0
-  device: "cuda"  # or "cpu"
+  early_stopping_patience: 5
+  seed: 42
+  device: "cpu"             # actual run was CPU-only (~9.1 h, early-stopped at epoch 13)
+                            # set to "cuda" if a GPU is available
 
-model:
-  architecture: "ResNet50"  # or "UNet"
-  pretrained: true
-  num_input_channels: 3
-  num_classes: 1
-  dropout: 0.5
-  
 evaluation:
-  threshold: 0.5  # Classification threshold
+  # 0.55 was selected on the VALIDATION set (F1-max) and then applied to the
+  # held-out test set. Do not re-tune this on the test set.
+  threshold: 0.55
   compute_roc: true
   save_confusion_matrix: true
-  
+
 paths:
   models_dir: "models/"
   results_dir: "results/"
   logs_dir: "logs/"
-  notebooks_dir: "notebooks/"
+
+# ---------------------------------------------------------------------------
+# BASELINE ONLY (NOT a deployment result): lightning metadata MLP
+# ---------------------------------------------------------------------------
+# Retained as a leakage lesson. amplitude and strike_type are strike-derived
+# fields (they exist only because a strike was detected), so using them to predict
+# strike occurrence is circular. The clean lat/lon/time-only variant is the honest
+# comparator. Settings for reference only:
+#   input_features: [lat, lon, amplitude, strike_type]
+#   hidden_size: 256
+#   batch_size: 512
+#   optimizer: Adam + ReduceLROnPlateau
+#   loss_function: FocalLoss (alpha=0.25, gamma=2.0)

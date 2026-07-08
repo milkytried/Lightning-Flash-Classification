@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from src.build_occurrence_dataset import GridConfig, build_occurrence_dataset
 from src.evaluate_occurrence_baselines import evaluate
