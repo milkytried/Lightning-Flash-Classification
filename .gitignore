@@ -57,6 +57,14 @@ report/**
 
 # Scratch analyses
 explain_99_84_percent.py
+.verify-venv/
+.verify312/
+/ANALYSIS.md
+/check_dataset.py
+/compare_models.py
+/retrain_honest.py
+/train_clean_model.py
+/sample_data/
 
 # BMAD workspace artifacts
 _bmad/
