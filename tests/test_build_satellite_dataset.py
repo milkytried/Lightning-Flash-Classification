@@ -7,6 +7,8 @@ from src.build_satellite_dataset import (
     assign_slots,
     build_hsd_key,
     chronological_split,
+    ensure_finite_patch,
+    existing_frame_complete,
     floor_to_ahi_slot,
     read_mmd_ground_strikes,
     sample_negative_centres,
@@ -162,3 +164,45 @@ def test_sample_negative_centres_avoids_strikes():
     assert len(centres) == 5
     for _x, _y, lat, lon in centres:
         assert not (abs(lat - 3.0) < 0.5 and abs(lon - 101.0) < 0.5)
+
+
+def test_ensure_finite_patch_replaces_nan_and_inf():
+    patch = np.array([[[np.nan, np.inf, -np.inf]]], dtype=np.float32)
+
+    cleaned = ensure_finite_patch(patch, "test_patch")
+
+    assert cleaned.dtype == np.uint8
+    assert np.isfinite(cleaned).all()
+    assert cleaned.tolist() == [[[0, 255, 0]]]
+
+
+def test_existing_frame_complete_requires_manifest_rows_and_files(tmp_path):
+    patch_path = tmp_path / "patch.png"
+    patch_path.write_bytes(b"not-empty")
+    manifest = pd.DataFrame(
+        {
+            "path": [str(patch_path)],
+            "frame_id": ["H09_20250101_0000"],
+            "bands": ["B08+B13+B15"],
+            "segments": ["05+06"],
+            "target_window_start": ["2025-01-01T00:00:00+00:00"],
+            "target_window_end": ["2025-01-01T00:10:00+00:00"],
+        }
+    )
+
+    assert existing_frame_complete(
+        manifest,
+        "H09_20250101_0000",
+        ["B08", "B13", "B15"],
+        [5, 6],
+        pd.Timestamp("2025-01-01T00:00:00Z"),
+        pd.Timestamp("2025-01-01T00:10:00Z"),
+    )
+    assert not existing_frame_complete(
+        manifest,
+        "H09_20250101_0010",
+        ["B08", "B13", "B15"],
+        [5, 6],
+        pd.Timestamp("2025-01-01T00:10:00Z"),
+        pd.Timestamp("2025-01-01T00:20:00Z"),
+    )

@@ -222,6 +222,7 @@ def download_frame(
             local_path = cache_root / slot.bucket / key
             local_path.parent.mkdir(parents=True, exist_ok=True)
             if local_path.exists() and not overwrite:
+                logger.info("Using cached %s", local_path)
                 local_files.append(local_path)
                 continue
 
@@ -364,39 +365,126 @@ def write_patch(path: Path, patch: np.ndarray) -> None:
     Image.fromarray(patch, mode="RGB").save(path)
 
 
+def ensure_finite_patch(patch: np.ndarray, patch_id: str) -> np.ndarray:
+    """Replace non-finite patch values before saving a PNG."""
+
+    if np.isfinite(patch).all():
+        return patch
+
+    logger.warning("patch %s contains NaN/inf; replacing non-finite values before save", patch_id)
+    patch = np.nan_to_num(patch, nan=0.0, posinf=255.0, neginf=0.0)
+    return np.clip(patch, 0, 255).astype(np.uint8)
+
+
+def load_existing_manifest(output_csv: str | Path) -> pd.DataFrame:
+    path = Path(output_csv)
+    if not path.exists():
+        return pd.DataFrame()
+    return pd.read_csv(path)
+
+
+def existing_frame_complete(
+    manifest: pd.DataFrame,
+    frame_id: str,
+    bands: Sequence[str],
+    segments: Sequence[int],
+    window_start: pd.Timestamp,
+    window_end: pd.Timestamp,
+) -> bool:
+    if manifest.empty or "frame_id" not in manifest.columns or "path" not in manifest.columns:
+        return False
+
+    rows = manifest[manifest["frame_id"] == frame_id]
+    if rows.empty:
+        return False
+
+    expected_bands = "+".join(bands)
+    expected_segments = "+".join(f"{segment:02d}" for segment in segments)
+    if "bands" in rows.columns and not (rows["bands"].astype(str) == expected_bands).all():
+        return False
+    if "segments" in rows.columns and not (rows["segments"].astype(str) == expected_segments).all():
+        return False
+    if "target_window_start" in rows.columns:
+        starts = pd.to_datetime(rows["target_window_start"], utc=True, errors="coerce")
+        if not (starts == window_start).all():
+            return False
+    if "target_window_end" in rows.columns:
+        ends = pd.to_datetime(rows["target_window_end"], utc=True, errors="coerce")
+        if not (ends == window_end).all():
+            return False
+
+    return all(Path(path).exists() for path in rows["path"])
+
+
 def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
     rng = np.random.default_rng(args.seed)
     strikes = read_mmd_ground_strikes(args.lightning_root)
     strikes = assign_slots(strikes, nowcast_minutes=args.nowcast_minutes)
-    frame_times = select_frame_times(strikes, args.max_frames, args.max_frames_per_day)
+    frame_times = select_frame_times(strikes, None, args.max_frames_per_day)
     if not frame_times:
         raise ValueError("No frame times selected; loosen sampling caps or check the input data")
 
-    rows = []
+    output_csv = Path(args.output_csv)
+    existing_manifest = pd.DataFrame() if args.overwrite else load_existing_manifest(output_csv)
+    rows = existing_manifest.to_dict("records") if not existing_manifest.empty else []
     output_root = Path(args.patch_root)
+    written_frames = 0
+    skipped_frames = 0
+    resumed_frames = 0
     for frame_time in frame_times:
         slot = FrameSlot(pd.Timestamp(frame_time).tz_convert("UTC"))
+        frame_id = f"{slot.satellite_id}_{slot.date}_{slot.hhmm}"
         frame_strikes = strikes[strikes["frame_time"] == frame_time].copy()
         window_strikes = strikes_in_target_window(strikes, slot.timestamp, args.nowcast_minutes)
         window_start, window_end = target_window(slot.timestamp, args.nowcast_minutes)
         split = chronological_split(slot.timestamp)
+
+        if existing_frame_complete(
+            existing_manifest,
+            frame_id,
+            args.bands,
+            args.segments,
+            window_start,
+            window_end,
+        ):
+            logger.info("skipping frame %s: already present in manifest with existing patches", frame_id)
+            resumed_frames += 1
+            if args.max_frames is not None and resumed_frames + written_frames >= args.max_frames:
+                break
+            continue
+
+        if not existing_manifest.empty and "frame_id" in existing_manifest.columns:
+            rows = [row for row in rows if row.get("frame_id") != frame_id]
+
+        if args.max_frames is not None and resumed_frames + written_frames >= args.max_frames:
+            break
+
         if args.max_positives_per_frame is not None and len(frame_strikes) > args.max_positives_per_frame:
             frame_strikes = frame_strikes.sample(
                 n=args.max_positives_per_frame,
                 random_state=args.seed,
             ).sort_values("timestamp")
 
-        files = download_frame(
-            slot,
-            bands=args.bands,
-            segments=args.segments,
-            cache_root=args.cache_root,
-            overwrite=args.overwrite,
-        )
-        scene = load_resampled_frame(files, args.bands, resolution_degrees=args.resolution_degrees)
-        frame_image = stack_frame_uint8(scene, args.bands)
+        try:
+            files = download_frame(
+                slot,
+                bands=args.bands,
+                segments=args.segments,
+                cache_root=args.cache_root,
+                overwrite=args.overwrite,
+            )
+            scene = load_resampled_frame(files, args.bands, resolution_degrees=args.resolution_degrees)
+            frame_image = stack_frame_uint8(scene, args.bands)
+        except FileNotFoundError as exc:
+            logger.warning("skipping frame %s: %s", frame_id, exc)
+            skipped_frames += 1
+            continue
+        except Exception as exc:
+            logger.warning("skipping frame %s: download/read failed: %s", frame_id, exc)
+            skipped_frames += 1
+            continue
+
         himawari_files = ";".join(str(path) for path in files)
-        frame_id = f"{slot.satellite_id}_{slot.date}_{slot.hhmm}"
 
         positive_written = 0
         for idx, strike in frame_strikes.iterrows():
@@ -405,6 +493,7 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
             if patch is None:
                 continue
             patch_path = output_root / split / "positive" / f"{slot.date}_{slot.hhmm}_pos_{idx}.png"
+            patch = ensure_finite_patch(patch, str(patch_path))
             write_patch(patch_path, patch)
             rows.append(
                 {
@@ -446,6 +535,7 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
             if patch is None:
                 continue
             patch_path = output_root / split / "negative" / f"{slot.date}_{slot.hhmm}_neg_{neg_idx}.png"
+            patch = ensure_finite_patch(patch, str(patch_path))
             write_patch(patch_path, patch)
             rows.append(
                 {
@@ -479,12 +569,12 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
             positive_written,
             len(negatives),
         )
+        written_frames += 1
 
     manifest = pd.DataFrame(rows)
     if manifest.empty:
         raise ValueError("No patches were written; check bounds, segments, and selected frames")
 
-    output_csv = Path(args.output_csv)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     validate_manifest(manifest)
     if output_csv.exists() and not args.no_backup:
@@ -495,6 +585,12 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
         logger.info("Backed up existing manifest to %s", backup_path)
     manifest.to_csv(output_csv, index=False)
     logger.info("Wrote %d rows to %s", len(manifest), output_csv)
+    logger.info(
+        "Frame summary: wrote %d new frames, resumed %d cached frames, skipped %d failed frames",
+        written_frames,
+        resumed_frames,
+        skipped_frames,
+    )
     return manifest
 
 
