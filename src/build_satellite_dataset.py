@@ -15,7 +15,7 @@ import math
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -354,10 +354,45 @@ def select_frame_times(
     )
     if max_frames_per_day is not None:
         frame_times = frame_times.groupby("day", group_keys=False).head(max_frames_per_day)
+
+    frame_times = order_frame_times_by_split(frame_times["frame_time"])
     if max_frames is not None and len(frame_times) > max_frames:
-        indices = np.linspace(0, len(frame_times) - 1, num=max_frames, dtype=int)
-        frame_times = frame_times.iloc[indices]
-    return list(frame_times["frame_time"])
+        frame_times = frame_times[:max_frames]
+    return frame_times
+
+
+def order_frame_times_by_split(
+    frame_times: Iterable[pd.Timestamp],
+    split_weights: Mapping[str, float] | None = None,
+    preferred_frame_times: set[pd.Timestamp] | None = None,
+) -> list[pd.Timestamp]:
+    """Interleave chronological frame times so capped builds cover every split."""
+
+    weights = split_weights or {"train": 0.70, "val": 0.15, "test": 0.15}
+    preferred = preferred_frame_times or set()
+    groups: dict[str, list[pd.Timestamp]] = {split: [] for split in weights}
+    for frame_time in sorted(pd.Timestamp(ts).tz_convert("UTC") for ts in frame_times):
+        groups.setdefault(chronological_split(frame_time), []).append(frame_time)
+    for split, values in groups.items():
+        groups[split] = sorted(values, key=lambda ts: (ts not in preferred, ts))
+
+    positions = {split: 0 for split in groups}
+    emitted = {split: 0 for split in groups}
+    ordered: list[pd.Timestamp] = []
+    while True:
+        available = [split for split, values in groups.items() if positions[split] < len(values)]
+        if not available:
+            break
+
+        split = min(
+            available,
+            key=lambda name: (emitted[name] / weights.get(name, 0.01), list(weights).index(name) if name in weights else 99),
+        )
+        ordered.append(groups[split][positions[split]])
+        positions[split] += 1
+        emitted[split] += 1
+
+    return ordered
 
 
 def write_patch(path: Path, patch: np.ndarray) -> None:
@@ -383,6 +418,31 @@ def load_existing_manifest(output_csv: str | Path) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
+def reconcile_manifest_splits(manifest: pd.DataFrame) -> pd.DataFrame:
+    if manifest.empty or "timestamp" not in manifest.columns or "split" not in manifest.columns:
+        return manifest
+
+    manifest = manifest.copy()
+    expected_splits = pd.to_datetime(manifest["timestamp"], utc=True).map(chronological_split)
+    mismatches = manifest["split"].astype(str) != expected_splits
+    mismatch_count = int(mismatches.sum())
+    if mismatch_count:
+        logger.warning("Correcting %d existing manifest rows whose split disagrees with chronological_split", mismatch_count)
+        manifest.loc[mismatches, "split"] = expected_splits[mismatches]
+    return manifest
+
+
+def cached_frame_available(
+    frame_time: pd.Timestamp,
+    bands: Sequence[str],
+    segments: Sequence[int],
+    cache_root: str | Path,
+) -> bool:
+    slot = FrameSlot(pd.Timestamp(frame_time).tz_convert("UTC"))
+    root = Path(cache_root)
+    return all((root / slot.bucket / build_hsd_key(slot, band, segment)).exists() for band in bands for segment in segments)
+
+
 def existing_frame_complete(
     manifest: pd.DataFrame,
     frame_id: str,
@@ -396,6 +456,9 @@ def existing_frame_complete(
 
     rows = manifest[manifest["frame_id"] == frame_id]
     if rows.empty:
+        return False
+
+    if "split" in rows.columns and not (rows["split"].astype(str) == chronological_split(window_start)).all():
         return False
 
     expected_bands = "+".join(bands)
@@ -426,11 +489,21 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
 
     output_csv = Path(args.output_csv)
     existing_manifest = pd.DataFrame() if args.overwrite else load_existing_manifest(output_csv)
+    existing_manifest = reconcile_manifest_splits(existing_manifest)
+    cached_times = {
+        frame_time
+        for frame_time in frame_times
+        if cached_frame_available(frame_time, args.bands, args.segments, args.cache_root)
+    }
+    if cached_times:
+        frame_times = order_frame_times_by_split(frame_times, preferred_frame_times=cached_times)
+        logger.info("Prioritizing %d frame times with complete local Himawari cache", len(cached_times))
     rows = existing_manifest.to_dict("records") if not existing_manifest.empty else []
     output_root = Path(args.patch_root)
     written_frames = 0
     skipped_frames = 0
     resumed_frames = 0
+    empty_frames = 0
     for frame_time in frame_times:
         slot = FrameSlot(pd.Timestamp(frame_time).tz_convert("UTC"))
         frame_id = f"{slot.satellite_id}_{slot.date}_{slot.hhmm}"
@@ -449,14 +522,12 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
         ):
             logger.info("skipping frame %s: already present in manifest with existing patches", frame_id)
             resumed_frames += 1
-            if args.max_frames is not None and resumed_frames + written_frames >= args.max_frames:
-                break
             continue
 
         if not existing_manifest.empty and "frame_id" in existing_manifest.columns:
             rows = [row for row in rows if row.get("frame_id") != frame_id]
 
-        if args.max_frames is not None and resumed_frames + written_frames >= args.max_frames:
+        if args.max_frames is not None and written_frames >= args.max_frames:
             break
 
         if args.max_positives_per_frame is not None and len(frame_strikes) > args.max_positives_per_frame:
@@ -569,7 +640,10 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
             positive_written,
             len(negatives),
         )
-        written_frames += 1
+        if positive_written or negatives:
+            written_frames += 1
+        else:
+            empty_frames += 1
 
     manifest = pd.DataFrame(rows)
     if manifest.empty:
@@ -591,6 +665,7 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
         resumed_frames,
         skipped_frames,
     )
+    logger.info("Empty frame summary: %d frames produced no patches and did not count toward the cap", empty_frames)
     return manifest
 
 
@@ -618,6 +693,12 @@ def validate_manifest(manifest: pd.DataFrame) -> None:
     mixed_split_frames = frame_splits[frame_splits > 1].index.tolist()
     if mixed_split_frames:
         raise ValueError(f"Himawari frame appears in multiple splits: {mixed_split_frames[:5]}")
+
+    expected_splits = pd.to_datetime(manifest["timestamp"], utc=True).map(chronological_split)
+    split_mismatches = manifest[manifest["split"].astype(str) != expected_splits]
+    if not split_mismatches.empty:
+        examples = split_mismatches[["frame_id", "timestamp", "split"]].head(5).to_dict("records")
+        raise ValueError(f"Manifest rows have split values that disagree with chronological_split: {examples}")
 
     dates_by_split = {
         split: set(pd.to_datetime(group["timestamp"], utc=True).dt.date)

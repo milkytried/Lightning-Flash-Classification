@@ -6,11 +6,14 @@ from src.build_satellite_dataset import (
     FrameSlot,
     assign_slots,
     build_hsd_key,
+    cached_frame_available,
     chronological_split,
     ensure_finite_patch,
     existing_frame_complete,
     floor_to_ahi_slot,
+    order_frame_times_by_split,
     read_mmd_ground_strikes,
+    reconcile_manifest_splits,
     sample_negative_centres,
     select_frame_times,
     strikes_in_target_window,
@@ -117,21 +120,100 @@ def test_nowcast_target_window_uses_only_future_strikes():
 def test_select_frame_times_spans_timeline_when_capped():
     strikes = pd.DataFrame(
         {
-            "frame_time": pd.date_range(
-                "2023-01-01T00:00:00Z",
-                periods=10,
-                freq="30D",
+            "frame_time": pd.to_datetime(
+                [
+                    "2023-01-01T00:00:00Z",
+                    "2023-06-01T00:00:00Z",
+                    "2024-01-01T00:00:00Z",
+                    "2024-06-01T00:00:00Z",
+                    "2024-12-01T00:00:00Z",
+                    "2025-01-08T00:00:00Z",
+                    "2025-02-01T00:00:00Z",
+                    "2025-02-20T00:00:00Z",
+                    "2025-03-02T00:00:00Z",
+                    "2025-03-15T00:00:00Z",
+                    "2025-04-01T00:00:00Z",
+                    "2025-04-18T00:00:00Z",
+                ],
+                utc=True,
             )
         }
     )
 
-    selected = select_frame_times(strikes, max_frames=3)
+    selected = select_frame_times(strikes, max_frames=6)
+    selected_splits = [chronological_split(frame_time) for frame_time in selected]
 
-    assert selected[0] == strikes.iloc[0]["frame_time"]
-    assert selected[-1] == strikes.iloc[-1]["frame_time"]
+    assert {"train", "val", "test"}.issubset(selected_splits)
+    assert selected_splits.count("train") >= selected_splits.count("val")
+    assert selected_splits.count("train") >= selected_splits.count("test")
 
 
-def test_validate_manifest_rejects_date_overlap():
+def test_order_frame_times_by_split_preserves_chronology_within_split():
+    frame_times = pd.to_datetime(
+        [
+            "2025-03-03T00:10:00Z",
+            "2023-01-01T00:10:00Z",
+            "2025-01-02T00:10:00Z",
+            "2023-01-02T00:10:00Z",
+            "2025-03-04T00:10:00Z",
+            "2025-01-03T00:10:00Z",
+        ],
+        utc=True,
+    )
+
+    ordered = order_frame_times_by_split(frame_times)
+
+    for split in {"train", "val", "test"}:
+        split_times = [frame_time for frame_time in ordered if chronological_split(frame_time) == split]
+        assert split_times == sorted(split_times)
+
+
+def test_order_frame_times_by_split_prioritizes_preferred_within_split():
+    frame_times = pd.to_datetime(
+        [
+            "2025-03-03T00:10:00Z",
+            "2025-03-15T00:10:00Z",
+            "2025-03-20T00:10:00Z",
+        ],
+        utc=True,
+    )
+
+    ordered = order_frame_times_by_split(frame_times, preferred_frame_times={frame_times[1]})
+
+    assert ordered[0] == frame_times[1]
+
+
+def test_cached_frame_available_requires_all_segments(tmp_path):
+    frame_time = pd.Timestamp("2025-03-15T00:00:00Z")
+    slot = floor_to_ahi_slot(frame_time)
+
+    for band in ["B08", "B13", "B15"]:
+        for segment in [5, 6]:
+            path = tmp_path / slot.bucket / build_hsd_key(slot, band, segment)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"cached")
+
+    assert cached_frame_available(frame_time, ["B08", "B13", "B15"], [5, 6], tmp_path)
+    (tmp_path / slot.bucket / build_hsd_key(slot, "B15", 6)).unlink()
+    assert not cached_frame_available(frame_time, ["B08", "B13", "B15"], [5, 6], tmp_path)
+
+
+def test_reconcile_manifest_splits_keeps_rows_and_updates_stale_split():
+    manifest = pd.DataFrame(
+        {
+            "timestamp": ["2025-03-15T00:00:00Z"],
+            "split": ["val"],
+            "frame_id": ["H09_20250315_0000"],
+        }
+    )
+
+    reconciled = reconcile_manifest_splits(manifest)
+
+    assert len(reconciled) == 1
+    assert reconciled.loc[0, "split"] == "test"
+
+
+def test_validate_manifest_rejects_split_mismatch():
     manifest = pd.DataFrame(
         {
             "path": ["a.png", "b.png"],
@@ -146,7 +228,7 @@ def test_validate_manifest_rejects_date_overlap():
         }
     )
 
-    with pytest.raises(ValueError, match="Date leakage"):
+    with pytest.raises(ValueError, match="disagree with chronological_split"):
         validate_manifest(manifest)
 
 
