@@ -12,6 +12,7 @@ from src.build_satellite_dataset import (
     existing_frame_complete,
     floor_to_ahi_slot,
     order_frame_times_by_split,
+    patch_black_fraction,
     read_mmd_ground_strikes,
     reconcile_manifest_splits,
     sample_negative_centres,
@@ -246,6 +247,29 @@ def test_sample_negative_centres_avoids_strikes():
     assert len(centres) == 5
     for _x, _y, lat, lon in centres:
         assert not (abs(lat - 3.0) < 0.5 and abs(lon - 101.0) < 0.5)
+
+
+def test_sample_negative_centres_rejects_no_data_patches():
+    strikes = pd.DataFrame({"lat": [], "lon": []})
+    image = np.full((96, 96, 3), 180, dtype=np.uint8)
+    image[:, 48:, :] = 0
+
+    centres = sample_negative_centres(
+        strikes,
+        image_shape=image.shape[:2],
+        count=12,
+        min_distance_km=0.0,
+        rng=np.random.default_rng(2),
+        patch_size=16,
+        image=image,
+        max_black_fraction=0.02,
+        black_threshold=8,
+    )
+
+    assert len(centres) == 12
+    for x, y, _lat, _lon in centres:
+        patch = image[y - 8 : y + 8, x - 8 : x + 8, :]
+        assert patch_black_fraction(patch, threshold=8) <= 0.02
 
 
 def test_ensure_finite_patch_replaces_nan_and_inf():

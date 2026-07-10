@@ -298,6 +298,24 @@ def crop_patch(image: np.ndarray, x: int, y: int, patch_size: int = 64) -> np.nd
     return image[y0:y1, x0:x1, :]
 
 
+def patch_black_fraction(patch: np.ndarray, threshold: int = 8) -> float:
+    """Return the fraction of pixels that look like black/no-data fill."""
+
+    if patch.size == 0:
+        return 1.0
+    return float(np.all(patch[..., :3] < threshold, axis=2).mean())
+
+
+def patch_has_valid_coverage(
+    patch: np.ndarray,
+    max_black_fraction: float = 0.02,
+    black_threshold: int = 8,
+) -> bool:
+    """Reject scan-edge/no-data patches before they enter the dataset."""
+
+    return patch_black_fraction(patch, black_threshold) <= max_black_fraction
+
+
 def haversine_km(lat1: np.ndarray, lon1: np.ndarray, lat2: float, lon2: float) -> np.ndarray:
     radius_km = 6371.0
     p1 = np.radians(lat1)
@@ -316,8 +334,11 @@ def sample_negative_centres(
     rng: np.random.Generator,
     patch_size: int = 64,
     max_attempts: int = 10000,
+    image: np.ndarray | None = None,
+    max_black_fraction: float = 0.02,
+    black_threshold: int = 8,
 ) -> list[tuple[int, int, float, float]]:
-    """Sample crop centres far enough away from all strikes in the same frame."""
+    """Sample valid crop centres far enough away from strikes in the same frame."""
 
     height, width = image_shape
     half = patch_size // 2
@@ -336,6 +357,10 @@ def sample_negative_centres(
 
         if len(strike_lats) and np.min(haversine_km(strike_lats, strike_lons, lat, lon)) < min_distance_km:
             continue
+        if image is not None:
+            patch = crop_patch(image, x, y, patch_size=patch_size)
+            if patch is None or not patch_has_valid_coverage(patch, max_black_fraction, black_threshold):
+                continue
         centres.append((x, y, lat, lon))
 
     return centres
@@ -563,6 +588,16 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
             patch = crop_patch(frame_image, x, y, patch_size=args.patch_size)
             if patch is None:
                 continue
+            if not patch_has_valid_coverage(patch, args.max_patch_black_fraction, args.patch_black_threshold):
+                logger.info(
+                    "skipping positive patch %s %s idx=%s: black fraction %.4f exceeds %.4f",
+                    slot.date,
+                    slot.hhmm,
+                    idx,
+                    patch_black_fraction(patch, args.patch_black_threshold),
+                    args.max_patch_black_fraction,
+                )
+                continue
             patch_path = output_root / split / "positive" / f"{slot.date}_{slot.hhmm}_pos_{idx}.png"
             patch = ensure_finite_patch(patch, str(patch_path))
             write_patch(patch_path, patch)
@@ -600,10 +635,31 @@ def build_dataset(args: argparse.Namespace) -> pd.DataFrame:
             min_distance_km=args.negative_min_distance_km,
             rng=rng,
             patch_size=args.patch_size,
+            image=frame_image,
+            max_black_fraction=args.max_patch_black_fraction,
+            black_threshold=args.patch_black_threshold,
         )
+        if len(negatives) < negative_target:
+            logger.warning(
+                "%s %s: sampled %d/%d valid negatives after rejecting no-data/strike-proximate candidates",
+                slot.date,
+                slot.hhmm,
+                len(negatives),
+                negative_target,
+            )
         for neg_idx, (x, y, lat, lon) in enumerate(negatives):
             patch = crop_patch(frame_image, x, y, patch_size=args.patch_size)
             if patch is None:
+                continue
+            if not patch_has_valid_coverage(patch, args.max_patch_black_fraction, args.patch_black_threshold):
+                logger.info(
+                    "skipping negative patch %s %s idx=%s: black fraction %.4f exceeds %.4f",
+                    slot.date,
+                    slot.hhmm,
+                    neg_idx,
+                    patch_black_fraction(patch, args.patch_black_threshold),
+                    args.max_patch_black_fraction,
+                )
                 continue
             patch_path = output_root / split / "negative" / f"{slot.date}_{slot.hhmm}_neg_{neg_idx}.png"
             patch = ensure_finite_patch(patch, str(patch_path))
@@ -733,6 +789,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-positives-per-frame", type=int, default=50)
     parser.add_argument("--negative-min-distance-km", type=float, default=30.0)
     parser.add_argument("--patch-size", type=int, default=64)
+    parser.add_argument("--max-patch-black-fraction", type=float, default=0.02)
+    parser.add_argument("--patch-black-threshold", type=int, default=8)
     parser.add_argument("--resolution-degrees", type=float, default=0.02)
     parser.add_argument("--nowcast-minutes", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
