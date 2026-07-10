@@ -26,6 +26,9 @@ s3fs==2024.10.0
 boto3==1.35.36
 bottleneck==1.4.2
 
+# --- Plotting ---
+matplotlib==3.9.2
+
 # --- Imaging / augmentation ---
 Pillow==10.4.0
 opencv-python==4.10.0.84

@@ -39,6 +39,7 @@ events.out.tfevents.*
 
 # Results
 results/plots/
+results/figures/
 results/*.json
 results/*.png
 report/**
