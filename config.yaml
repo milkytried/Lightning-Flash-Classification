@@ -2,9 +2,9 @@
 # Author: Chai Wen Cheng
 # Project: CNN-based classification of cloud-to-ground lightning using Himawari-8
 #
-# This config documents the ACTUAL settings used for the headline result
-# (the Himawari-8 satellite CNN). The metadata MLP is a separate leakage-aware
-# baseline and uses the settings noted in its own section at the bottom.
+# This config documents the current aligned Himawari -> MMD satellite CNN run.
+# The metadata MLP is a separate leakage-aware baseline and uses the settings
+# noted in its own section at the bottom.
 
 project:
   name: "Lightning Flash Classification"
@@ -26,36 +26,36 @@ preprocessing:
   patch_size: 64          # pixels (64x64 RGB patches)
   num_channels: 3         # RGB satellite patch
   normalization: "imagenet"   # ImageNet mean/std (ResNet-50 backbone)
-  # Split is chronological, at the source-PNG level, to prevent leakage:
-  #   train = 2025-04-18 PNGs, val/test = 2025-04-22 PNGs (no PNG in two splits)
+  # Split is chronological by Himawari frame/date, using the manifest split column.
+  # The aligned 2023-2025 dataset has no date overlap across train/val/test.
 
 model:
-  architecture: "ResNet50"   # LightningResNet50: frozen backbone + custom head
+  architecture: "ResNet50"   # LightningResNet50: ImageNet backbone + custom head
   pretrained: true
-  freeze_backbone: true      # only the classifier head is trained (~262K params)
+  freeze_backbone: true      # verified frozen CPU run: train classifier head only
   num_input_channels: 3
   num_classes: 1             # binary, sigmoid output
   dropout: 0.5
 
 train:
-  batch_size: 32             # train
-  eval_batch_size: 256       # val / test
-  max_epochs: 15
-  learning_rate: 0.001
-  optimizer: "Adam"
+  batch_size: 32             # verified CPU run
+  eval_batch_size: 128       # val / test
+  max_epochs: 50
+  backbone_learning_rate: 0.00001
+  head_learning_rate: 0.001
+  optimizer: "Adam_head_only"
   loss_function: "FocalLoss"
   loss_alpha: 0.25
   loss_gamma: 2.0
   gradient_clip_norm: 1.0
   early_stopping_patience: 5
   seed: 42
-  device: "cpu"             # actual run was CPU-only (~9.1 h, early-stopped at epoch 13)
-                            # set to "cuda" if a GPU is available
+  device: "cpu"
 
 evaluation:
-  # 0.55 was selected on the VALIDATION set (F1-max) and then applied to the
-  # held-out test set. Do not re-tune this on the test set.
-  threshold: 0.55
+  # The decision threshold is selected on VALIDATION only (F1-max), then frozen
+  # and applied once to TEST. Do not re-tune this on the test set.
+  threshold_selection: "validation_f1_max"
   compute_roc: true
   save_confusion_matrix: true
 

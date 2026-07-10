@@ -69,3 +69,6 @@ explain_99_84_percent.py
 # BMAD workspace artifacts
 _bmad/
 _bmad-output/
+
+# Local build/training transcript logs
+/build_log*.txt
