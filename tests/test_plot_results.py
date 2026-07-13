@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from plot_results import plot_example_input_patches
+import plot_results
 
 
 def build_synthetic_manifest(tmp_path: Path, frames_per_class: int = 6) -> tuple[Path, np.ndarray]:
@@ -46,21 +46,24 @@ def build_synthetic_manifest(tmp_path: Path, frames_per_class: int = 6) -> tuple
     return manifest, probabilities
 
 
-def test_example_selection_uses_distinct_frames_and_is_seeded(tmp_path):
+def test_example_selection_uses_distinct_frames_and_is_seeded(tmp_path, monkeypatch):
+    monkeypatch.setattr(plot_results, "verify_selected_probability_mapping", lambda *args, **kwargs: [])
     manifest, probabilities = build_synthetic_manifest(tmp_path)
     first_output = tmp_path / "figures_first"
     second_output = tmp_path / "figures_second"
 
-    first = plot_example_input_patches(
+    first = plot_results.plot_example_input_patches(
         manifest,
         first_output,
         probabilities,
+        checkpoint_path=tmp_path / "unused_checkpoint.pth",
         seed=42,
     )
-    second = plot_example_input_patches(
+    second = plot_results.plot_example_input_patches(
         manifest,
         second_output,
         probabilities,
+        checkpoint_path=tmp_path / "unused_checkpoint.pth",
         seed=42,
     )
 
@@ -79,18 +82,21 @@ def test_example_selection_uses_distinct_frames_and_is_seeded(tmp_path):
         (first_output / "example_input_patches_selection.json").read_text(encoding="utf-8")
     )
     assert sidecar["seed"] == 42
+    assert sidecar["decision_threshold"] == pytest.approx(0.51)
     assert sidecar["selections"] == first
     assert (first_output / "example_input_patches.png").stat().st_size > 0
 
 
-def test_example_selection_warns_instead_of_duplicating_frames(tmp_path):
+def test_example_selection_warns_instead_of_duplicating_frames(tmp_path, monkeypatch):
+    monkeypatch.setattr(plot_results, "verify_selected_probability_mapping", lambda *args, **kwargs: [])
     manifest, probabilities = build_synthetic_manifest(tmp_path, frames_per_class=2)
 
     with pytest.warns(RuntimeWarning, match="only 2 distinct source frames"):
-        selections = plot_example_input_patches(
+        selections = plot_results.plot_example_input_patches(
             manifest,
             tmp_path / "figures_fallback",
             probabilities,
+            checkpoint_path=tmp_path / "unused_checkpoint.pth",
             seed=42,
         )
 
@@ -98,3 +104,15 @@ def test_example_selection_warns_instead_of_duplicating_frames(tmp_path):
     for label in (1, 0):
         frame_ids = [item["frame_id"] for item in selections if item["label"] == label]
         assert len(frame_ids) == len(set(frame_ids)) == 2
+
+
+def test_positive_probability_summary():
+    probabilities = np.array([0.1, 0.2, 0.4, 0.8, 0.95, 0.99])
+    labels = np.array([0, 1, 1, 1, 1, 0])
+
+    summary = plot_results.summarize_positive_probabilities(probabilities, labels)
+
+    assert summary["median"] == pytest.approx(0.6)
+    assert summary["q1"] == pytest.approx(0.35)
+    assert summary["q3"] == pytest.approx(0.8375)
+    assert summary["fraction_above_0_9"] == pytest.approx(0.25)

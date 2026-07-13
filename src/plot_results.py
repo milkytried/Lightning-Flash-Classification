@@ -23,7 +23,7 @@ import torch
 from PIL import Image
 from sklearn.metrics import roc_auc_score, roc_curve
 
-from himawari_data_loader import create_himawari_loaders
+from himawari_data_loader import HimawariPatchDataset, create_himawari_loaders
 from train_satellite import SatelliteTrainer
 
 
@@ -216,10 +216,68 @@ def select_example_input_rows(
     return pd.concat(selected_groups, ignore_index=True)
 
 
+def verify_selected_probability_mapping(
+    checkpoint_path: Path,
+    dataset_csv: Path,
+    selections: list[dict[str, Any]],
+    tolerance: float = 1e-6,
+) -> list[dict[str, Any]]:
+    """Re-infer selected paths individually and verify their indexed scores."""
+
+    require_file(checkpoint_path, "model checkpoint")
+    require_file(dataset_csv, "dataset manifest")
+    verifier = SatelliteTrainer(
+        model_path=str(checkpoint_path),
+        device="cpu",
+        freeze_backbone=True,
+        pretrained=False,
+    )
+    verifier.load_model()
+    verifier.model.eval()
+
+    test_dataset = HimawariPatchDataset(
+        dataset_csv=str(dataset_csv),
+        split="test",
+        augment=False,
+    )
+    transform = test_dataset.transform
+    verification_rows = []
+    with torch.no_grad():
+        for selection in selections:
+            patch_path = require_file(Path(selection["path"]), "selected held-out patch")
+            with Image.open(patch_path) as image:
+                patch = np.asarray(image.convert("RGB"), dtype=np.uint8)
+            image_tensor = transform(image=patch)["image"].unsqueeze(0).to(verifier.device)
+            direct_probability = float(
+                verifier.model(image_tensor).reshape(-1)[0].detach().cpu().item()
+            )
+            indexed_probability = float(selection["predicted_probability"])
+            absolute_error = abs(direct_probability - indexed_probability)
+            if absolute_error > tolerance:
+                raise AssertionError(
+                    "Selected-patch probability mapping mismatch for "
+                    f"{patch_path}: indexed={indexed_probability:.10f}, "
+                    f"direct={direct_probability:.10f}, error={absolute_error:.3g}"
+                )
+            verification_rows.append(
+                {
+                    "path": str(patch_path),
+                    "indexed_probability": indexed_probability,
+                    "direct_path_probability": direct_probability,
+                    "absolute_error": absolute_error,
+                    "tolerance": float(tolerance),
+                    "passed": True,
+                }
+            )
+    return verification_rows
+
+
 def plot_example_input_patches(
     dataset_csv: Path,
     output_dir: Path,
     probabilities: np.ndarray,
+    checkpoint_path: Path,
+    threshold: float = 0.51,
     samples_per_class: int = 4,
     seed: int = 42,
 ) -> list[dict[str, Any]]:
@@ -243,10 +301,33 @@ def plot_example_input_patches(
     if not selected.empty:
         selected["probability"] = probabilities[selected["_test_index"].to_numpy(dtype=int)]
 
-    fig, axes = plt.subplots(2, samples_per_class, figsize=(2.5 * samples_per_class, 5.2))
+    selections = [
+        {
+            "label": int(row["label"]),
+            "class_name": "Lightning" if int(row["label"]) == 1 else "No lightning",
+            "path": str(row["path"]),
+            "frame_id": str(row["frame_id"]),
+            "frame_timestamp": pd.Timestamp(row["_frame_timestamp"]).isoformat(),
+            "test_index": int(row["_test_index"]),
+            "predicted_probability": float(row["probability"]),
+            "predicted_label": int(float(row["probability"]) >= threshold),
+            "correct_at_threshold": bool(
+                int(float(row["probability"]) >= threshold) == int(row["label"])
+            ),
+        }
+        for _, row in selected.iterrows()
+    ]
+    verification_rows = verify_selected_probability_mapping(
+        checkpoint_path,
+        dataset_csv,
+        selections,
+        tolerance=1e-6,
+    )
+
+    fig, axes = plt.subplots(2, samples_per_class, figsize=(2.5 * samples_per_class, 5.6))
     row_titles = ["Lightning", "No lightning"]
     for row_index, label in enumerate((1, 0)):
-        row_samples = selected[selected["label"].astype(int) == label].reset_index(drop=True)
+        row_samples = [item for item in selections if item["label"] == label]
         for col_index in range(samples_per_class):
             ax = axes[row_index, col_index]
             ax.axis("off")
@@ -254,11 +335,19 @@ def plot_example_input_patches(
                 ax.text(0.5, 0.5, "No distinct frame", ha="center", va="center", color="0.45")
                 continue
 
-            row = row_samples.iloc[col_index]
-            patch_path = require_file(Path(str(row["path"])), "held-out patch")
+            selection = row_samples[col_index]
+            patch_path = require_file(Path(selection["path"]), "held-out patch")
             with Image.open(patch_path) as image:
                 ax.imshow(image.convert("RGB"))
-            ax.set_title(f"p = {float(row['probability']):.2f}", fontsize=10)
+            annotation_color = (
+                "tab:green" if selection["correct_at_threshold"] else "tab:red"
+            )
+            ax.set_title(
+                f"p = {selection['predicted_probability']:.2f}",
+                fontsize=10,
+                color=annotation_color,
+                fontweight="bold",
+            )
             if col_index == 0:
                 ax.text(
                     -0.12,
@@ -273,28 +362,25 @@ def plot_example_input_patches(
 
     fig.suptitle(
         "Held-Out Himawari-9 Infrared Patches "
-        "(R=B08 6.2um, G=B13 10.4um, B=B15 12.4um)"
+        "(R=B08 6.2um, G=B13 10.4um, B=B15 12.4um)\n"
+        f"Decision threshold = {threshold:.2f}; green = correct, red = misclassified"
     )
     save_figure(fig, output_dir / "example_input_patches.png")
 
-    selections = [
-        {
-            "label": int(row["label"]),
-            "class_name": "Lightning" if int(row["label"]) == 1 else "No lightning",
-            "path": str(row["path"]),
-            "frame_id": str(row["frame_id"]),
-            "frame_timestamp": pd.Timestamp(row["_frame_timestamp"]).isoformat(),
-            "test_index": int(row["_test_index"]),
-            "predicted_probability": float(row["probability"]),
-        }
-        for _, row in selected.iterrows()
-    ]
     sidecar = {
         "seed": int(seed),
+        "decision_threshold": float(threshold),
         "samples_per_class_requested": int(samples_per_class),
         "frame_identifier_column": "frame_id",
         "frame_timestamp_column": "timestamp",
         "dataset_manifest": str(dataset_csv),
+        "checkpoint": str(checkpoint_path),
+        "probability_mapping_verification": {
+            "method": "individual inference from each selected patch path",
+            "tolerance": 1e-6,
+            "passed": True,
+            "comparisons": verification_rows,
+        },
         "selections": selections,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -303,7 +389,6 @@ def plot_example_input_patches(
         json.dump(sidecar, handle, indent=2)
         handle.write("\n")
     return selections
-
 
 def collect_probabilities(checkpoint_path: Path, dataset_csv: Path, batch_size: int) -> tuple[np.ndarray, np.ndarray]:
     require_file(checkpoint_path, "model checkpoint")
@@ -339,6 +424,25 @@ def collect_probabilities(checkpoint_path: Path, dataset_csv: Path, batch_size: 
         raise ValueError("The test loader produced no batches")
     return np.concatenate(probabilities), np.concatenate(labels)
 
+
+def summarize_positive_probabilities(
+    probabilities: np.ndarray,
+    labels: np.ndarray,
+) -> dict[str, float]:
+    """Summarize held-out positive-class probability calibration."""
+
+    positive_probabilities = np.asarray(probabilities, dtype=np.float64)[
+        np.asarray(labels, dtype=np.int64) == 1
+    ]
+    if not len(positive_probabilities):
+        raise ValueError("Cannot summarize positive probabilities: no positive labels")
+    q1, median, q3 = np.quantile(positive_probabilities, [0.25, 0.5, 0.75])
+    return {
+        "median": float(median),
+        "q1": float(q1),
+        "q3": float(q3),
+        "fraction_above_0_9": float(np.mean(positive_probabilities > 0.9)),
+    }
 
 def plot_roc_curve(probabilities: np.ndarray, labels: np.ndarray, json_auc: float, output_dir: Path) -> float:
     fpr, tpr, _ = roc_curve(labels, probabilities)
@@ -454,6 +558,8 @@ def main() -> None:
         args.dataset_csv,
         args.output_dir,
         probabilities,
+        checkpoint_path=args.checkpoint,
+        threshold=threshold,
         seed=args.seed,
     )
     recomputed_auc = plot_roc_curve(probabilities, labels, json_auc, args.output_dir)
@@ -467,6 +573,13 @@ def main() -> None:
         print(f"{path} {path.stat().st_size} bytes")
     print(f"Recomputed test ROC-AUC: {recomputed_auc:.6f}")
     print(f"JSON test ROC-AUC: {json_auc:.6f}")
+    positive_summary = summarize_positive_probabilities(probabilities, labels)
+    print(
+        "Positive-class test probabilities: "
+        f"median={positive_summary['median']:.6f}, "
+        f"IQR=[{positive_summary['q1']:.6f}, {positive_summary['q3']:.6f}], "
+        f"fraction_above_0.9={positive_summary['fraction_above_0_9']:.6f}"
+    )
     print(f"Example selection: {args.output_dir / 'example_input_patches_selection.json'}")
 
 
