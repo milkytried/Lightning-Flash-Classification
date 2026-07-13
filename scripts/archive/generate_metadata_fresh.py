@@ -1,7 +1,7 @@
-"""
-Generate comprehensive metadata for fresh trained checkpoint.
-Run this after train_fresh_optimized.py completes.
-"""
+"""Archived metadata generator for the earlier 11-PNG Himawari-8 prototype.
+
+Its artifact describes the baseline checkpoint and is superseded by the final
+aligned Himawari-9 metrics record."""
 
 import json
 import torch

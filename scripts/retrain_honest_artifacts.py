@@ -1,13 +1,8 @@
-"""
-Run a reproducible final artifact pass for metadata leakage analysis.
+"""Generate the metadata leakage demonstration and honest metadata comparator.
 
-This script trains two MLP probes:
-1) metadata mode: lat/lon/amplitude/strike_type
-2) clean mode: lat/lon/month/day_of_year/season
-
-It saves model checkpoints and a JSON metrics artifact focused on the
-minority no-strike class.
-"""
+The amplitude/strike_type probe is intentionally leakage-prone and is retained
+as a negative result. The lat/lon/time-only probe is the honest comparator.
+Neither is the headline satellite result."""
 
 from __future__ import annotations
 

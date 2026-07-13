@@ -1,3 +1,5 @@
+> **Archive notice:** This document describes the June 2026 status of the earlier 11-PNG Himawari-8 frozen-backbone prototype. It is **SUPERSEDED by the final FYP report** and is retained only as an audit trail; all path-existence statements below are historical snapshots and may refer to moved or gitignored artifacts. The current aligned Himawari-9 result uses 41,168 balanced patches (33,226 / 3,324 / 4,618), threshold 0.51, and achieves accuracy 0.9095, precision 0.8742, recall/POD 0.9567, F1 0.9136, ROC-AUC 0.9681, FAR 0.126, CSI 0.841, TSS 0.819, and HSS 0.819.
+
 # Fresh Satellite Model Training - Complete Status & Instructions
 
 **Last Updated:** 2026-06-05 11:35 UTC  

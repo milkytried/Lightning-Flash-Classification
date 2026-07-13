@@ -1,12 +1,16 @@
-"""
-Threshold tuning on validation set to optimize model performance.
-Uses validation set only to select threshold, then applies to test set.
-"""
+"""Reproduce threshold tuning for the earlier 11-PNG Himawari-8 baseline.
+
+This script generated the validation-selected 0.55 threshold and the Table 5.2
+baseline metrics (accuracy 0.8765, precision 0.8601, recall 0.8993, F1 0.8792,
+ROC-AUC 0.9199). It is not part of the final aligned Himawari-9 workflow."""
 
 import json
 import torch
 import numpy as np
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tqdm import tqdm
 from src.model_arch import LightningResNet50
 from src.himawari_data_loader import create_himawari_loaders

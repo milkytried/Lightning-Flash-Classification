@@ -1,10 +1,7 @@
-"""
-Run after train_fresh_optimized.py completes.
-Executes all post-training steps:
-1. Generate metadata
-2. Evaluate on test set
-3. Create final report
-"""
+"""Archived orchestration script for the earlier 11-PNG Himawari-8 prototype.
+
+It assembled prototype metadata, evaluation, and a report. The final aligned
+workflow is src/train_satellite.py followed by src/plot_results.py."""
 
 import sys
 import subprocess

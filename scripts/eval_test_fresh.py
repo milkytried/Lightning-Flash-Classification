@@ -1,8 +1,8 @@
-"""
-Comprehensive test set evaluation for fresh trained satellite checkpoint.
-Reports all requested metrics on the corrected unseen test set.
-Run this after train_fresh_optimized.py completes.
-"""
+"""Historical evaluator for the earlier 11-PNG Himawari-8 prototype.
+
+It generates the prototype's default-threshold test_evaluation_fresh.json,
+which fed the archived baseline analysis. It does not evaluate the final
+aligned Himawari-9 model."""
 
 import torch
 import torch.nn as nn
@@ -10,6 +10,9 @@ import numpy as np
 import pandas as pd
 import json
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,
     confusion_matrix, roc_curve
@@ -45,7 +48,7 @@ try:
     print(f"[OK] Model loaded: {checkpoint_path}")
 except Exception as e:
     print(f"[ERROR] Failed to load model: {e}")
-    print(f"  Make sure train_fresh_optimized.py completed first")
+    print("  This historical script requires models/satellite_resnet50_fresh.pth")
     exit(1)
 
 # Load test data
