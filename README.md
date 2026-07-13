@@ -1,555 +1,152 @@
-# Lightning flash classification using Himawari-8 satellite imagery
+# Lightning flash classification from Himawari-9 imagery
 
-## Project Overview
+This repository contains the PyTorch implementation used for the final FYP experiment: a frozen-backbone ResNet-50 that classifies same-time cloud-to-ground lightning occurrence from aligned Himawari-9 infrared patches. It is a research prototype, not an operational warning system and not a forward-looking nowcaster.
 
-This capstone project’s main validated result is a Himawari-8 satellite CNN that classifies lightning patches using image pixels only. The metadata model is kept in the repository as a baseline and a leakage lesson learned, not as a deployment claim. In particular, `amplitude` and `strike_type` are strike-derived features, so they are not valid deployment inputs for predicting whether a strike will occur.
+The final dataset contains 41,168 balanced 64×64 patches from AHI bands 8, 13, and 15 over approximately 99–120°E and 5°S–15°N. MMD strikes were aligned to 10-minute Himawari-9 frames and split chronologically: 33,226 training patches, 3,324 validation patches, and 4,618 test patches, with no date overlap between splits.
 
-**Key Objectives:**
-- ✅ Build a satellite-only CNN using Himawari-8 image patches
-- ✅ Keep a leakage-aware metadata baseline for comparison only
-- ✅ Document a reproducible pipeline and honest evaluation story
-- ✅ Preserve the validated satellite metrics from the corrected chronological split
+## Final aligned-model performance
 
-**Status:** Satellite-first research prototype. The Himawari-8 CNN is the headline result; the metadata model is retained only as a baseline / leakage demonstration, and the clean lat/lon/time-only variant is the honest but weak comparator.
+The ResNet-50 backbone was frozen (23,508,032 parameters) and only the 262,401-parameter classification head was trained. Training used focal loss (α = 0.25, γ = 2.0). The decision threshold of 0.51 was selected by maximising F1 on the validation split and then applied once to the held-out test split.
 
-**Leakage reasoning:** `amplitude` and `strike_type` are observed only when a strike exists. A model that uses them to predict whether a strike occurred is learning a consequence of the event, not an independent precursor. That is why the metadata probe can look strong while still being scientifically weak.
+| Metric | Held-out test value |
+|---|---:|
+| Accuracy | 0.9095 |
+| Precision | 0.8742 |
+| Recall / POD | 0.9567 |
+| F1 | 0.9136 |
+| ROC-AUC | 0.9681 |
+| FAR | 0.126 |
+| CSI | 0.841 |
+| TSS | 0.819 |
+| HSS | 0.819 |
 
-### Repository Hygiene
+The committed evidence for these values is [results/satellite_frozen_cpu_clean_metrics.json](results/satellite_frozen_cpu_clean_metrics.json). The earlier 11-PNG Himawari-8 experiment (accuracy 0.8765, ROC-AUC 0.9199) is retained only as the baseline used in Table 5.2 of the final report; it is not the headline result.
 
-- This repository keeps only production code, tests, and user-facing docs.
-- Internal review artifacts, draft corrected copies, generated data, model weights, and BMAD workspace artifacts are intentionally excluded from version control.
+## Metadata baseline (leakage demonstration)
 
-### Recent Milestones
+The metadata MLP can appear perfect when `amplitude` and `strike_type` are supplied, but those fields exist only because a strike was recorded. Using them to predict strike occurrence is circular label leakage, so the apparent perfect score is a negative result rather than an achievement. [scripts/retrain_honest_artifacts.py](scripts/retrain_honest_artifacts.py) reproduces both the leakage-prone probe and the honest latitude/longitude/time-only comparator, subject to the gitignored MMD dataset being available locally.
 
-**Metadata Classifier (2026-06-26 — Honest Evaluation):**
-- Ingested 5.3M real lightning strikes from MMD CSV files (4-year dataset)
-- Created 581 MB HDF5 dataset with 70/15/15 train/val/test splits
-- **ISSUE IDENTIFIED:** Negatives are still synthetic (generated amplitude and generated strike-type mix), which remains separable from real strike records
-- **LEAKAGE:** Using amplitude and strike_type to predict lightning is circular — these features only exist IF a strike was detected
-- **RETRAINING:** Models under evaluation:
-  1. Leaky model (amplitude + strike_type): Shows how ground-truth features give false confidence
-  2. Clean model (lat/lon/time only): Honest baseline using only genuinely independent features
-The detailed leakage explanation is summarized below in the performance notes and the metadata evaluation section.
+## Project structure
 
-**Satellite CNN (Himawari-8) (2026-06-05):**
-- Fresh training from scratch using a corrected chronological split
-- Layer freezing optimization reduced training time to 9.1 hours on CPU
-- Test evaluation on 46,796 unseen satellite patches
-- Reported ROC-AUC 0.9199 and a tuned operating point of 87.65% accuracy, 86.01% precision, 89.93% recall, and 0.8792 F1 at threshold 0.55
+The executable source tree is:
 
----
+```text
+src/
+├── __init__.py
+├── build_occurrence_dataset.py
+├── build_satellite_dataset.py
+├── compare_lightning_models.py
+├── daily_data_ingestion.py
+├── data_loader.py
+├── evaluate_lightning.py
+├── evaluate_occurrence_baselines.py
+├── himawari_data_loader.py
+├── inference.py
+├── ingest_met_data.py
+├── lightning_data_loader.py
+├── lightning_model.py
+├── model_arch.py
+├── plot_results.py
+├── preprocessing.py
+├── train.py
+├── train_lightning.py
+├── train_satellite.py
+└── validate_satellite_dataset.py
+```
 
-## Quick Start
+Supporting paths are `scripts/` for retained result-generation utilities, `scripts/archive/` and `docs/archive/` for the superseded prototype audit trail, `tests/` for the offline-safe test suite, and `report/README.md` for the report-package index.
 
-### 1. Setup Environment
+## Quick start
+
+Python 3.10–3.12 is supported. The pinned requirements install CPU builds of PyTorch by default.
 
 ```bash
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate
-
-# Install dependencies
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+pytest tests -q
 ```
 
-### 2. Verify Installation
+Useful checks that do not retrain a model are:
 
 ```bash
-# Run the test suite
-python -m pytest tests -q
-
-# Run the quick demo
-python demo_inference.py
+python src/validate_satellite_dataset.py --manifest data/processed/satellite_dataset.csv
+python src/evaluate_occurrence_baselines.py --help
+python src/plot_results.py --help
 ```
 
-### Demo Commands
+The first command requires the generated, gitignored satellite manifest and patches. The other commands name files committed to this repository and can be inspected with `--help` on a fresh clone.
 
-The repository contains two different inference paths:
+## Reproducing the results
+
+Place the licensed MMD CSV hierarchy under `data/raw/mmd_lightning/`, then run the final workflow from the repository root. These commands preserve the final run’s same-time labelling, three-band inputs, 1:1 class sampling, chronological split policy, no-data rejection, frozen backbone, and validation-only threshold selection.
+
+1. Build the aligned dataset from MMD strikes and the public NOAA archive:
 
 ```bash
-# Main result: satellite CNN evaluation on the held-out test split
-python eval_test_fresh.py
-
-# Threshold tuning used for the final satellite report
-python tune_threshold.py
-
-# Quick smoke test for the metadata baseline
-python demo_inference.py
+python src/build_satellite_dataset.py \
+  --lightning-root data/raw/mmd_lightning \
+  --cache-root data/raw/himawari_hsd \
+  --patch-root data/processed/himawari_mmd_patches \
+  --output-csv data/processed/satellite_dataset.csv \
+  --bands B08 B13 B15 --segments 5 6 \
+  --max-frames 1000 --max-frames-per-day 2 \
+  --negative-ratio 1.0 --max-positives-per-frame 50 \
+  --negative-min-distance-km 30 --patch-size 64 \
+  --max-patch-black-fraction 0.02 --patch-black-threshold 8 \
+  --resolution-degrees 0.02 --nowcast-minutes 0 --seed 42
 ```
 
-`python demo_inference.py` is a local smoke test, not the headline result. It requires:
-- `data/processed/lightning_dataset.h5`
-- `models/lightning_classifier.pth`
-
-The main satellite result requires:
-- `data/processed/satellite_dataset.csv`
-- `models/satellite_resnet50_fresh.pth`
-
-If those files are absent because they are gitignored or generated locally, run the relevant preprocessing or training script first.
-
-### 3. Project Structure
-
-```
-Project-Capstone/
-├── src/
-│   ├── __init__.py
-│   ├── ingest_met_data.py       # Ingest MMD lightning CSV records into HDF5
-│   ├── lightning_data_loader.py # Lazy-loading for metadata features
-│   ├── lightning_model.py       # MLP classifier + Focal Loss
-│   ├── train_lightning.py       # Metadata training loop with early stopping
-│   ├── evaluate_lightning.py    # Metadata test-set evaluation
-│   ├── himawari_data_loader.py  # Satellite patch loader for the CNN
-│   ├── train_satellite.py       # Satellite CNN training driver
-│   └── model_arch.py            # ResNet-50-based satellite model
-├── data/
-│   ├── raw/                     # Raw MMD CSV + Himawari-8 PNGs (gitignored)
-│   │   ├── himawari8_pngs/      # 4-year PNG structure (2023-2026)
-│   │   └── mmd_lightning/       # Met Dept CSV files (309 files, 5.3M records)
-│   └── processed/
-│       └── lightning_dataset.h5 # Processed dataset (581 MB, gitignored)
-├── models/
-│   ├── lightning_classifier.pth        # Trained metadata MLP (0.2 MB) ✅
-│   ├── satellite_resnet50_fresh.pth    # Himawari-8 CNN checkpoint (91 MB, gitignored)
-│   ├── model_metadata_fresh.json       # Satellite CNN metadata (split verification)
-│   ├── test_evaluation_fresh.json      # Satellite CNN test metrics
-│   └── best_resnet50.pth               # Legacy ResNet-50 weights (gitignored)
-├── results/
-│   ├── training_history.json    # Training metrics
-│   └── plots/                   # ROC, confusion matrix
-├── tests/
-│   ├── test_data_loader.py
-│   ├── test_model.py
-│   └── test_train.py
-├── config.yaml                  # Hyperparameters
-├── requirements.txt             # Python dependencies
-├── SATELLITE_MODEL_FRESH_REPORT.md     # Satellite CNN comprehensive report
-├── FRESH_TRAINING_STATUS.md            # Satellite CNN training status log
-├── TRAINING_FAILURE_DIAGNOSIS.md       # Root cause analysis (reference)
-├── README.md                    # This file
-```
-
----
-
-## Baseline / Leakage Lesson Learned: Lightning Metadata Classifier
-
-Metadata-based deep learning model for lightning occurrence prediction using real strike records from the Malaysian Meteorological Department. This is included as a baseline and leakage lesson, not as the main FYP result.
-
-### Configuration (Lightning Metadata Model)
-
-### Training Hyperparameters
-- **Batch size:** 512
-- **Learning rate:** 0.001 (Adam optimizer)
-- **Loss function:** Focal Loss (α=0.25, γ=2.0) for class imbalance
-- **Optimizer:** Adam with gradient clipping (norm=1.0)
-- **LR Scheduler:** ReduceLROnPlateau (factor=0.5, patience=5)
-- **Early stopping:** patience=10
-- **Max epochs:** 50
-- **Actual epochs trained:** ~10-15 (early stopped)
-- **Training time:** ~1h 50m (CPU)
-
-### Model Architecture
-```
-Input (4 features: lat_norm, lon_norm, amp_norm, strike_code)
-  ↓
-Linear(4 → 256)
-  ↓ BatchNorm1d → ReLU → Dropout(0.5)
-  ↓
-Linear(256 → 128) → ReLU → Dropout(0.5)
-  ↓
-Linear(128 → 64) → ReLU → Dropout(0.5)
-  ↓
-Linear(64 → 1) → Sigmoid
-  ↓
-Output: Binary probability [0, 1]
-
-Total parameters: 43,393
-```
-
----
-
-## Key Components (Current Implementation)
-
-### Data Ingestion (`src/ingest_met_data.py`)
-- **Purpose:** Parse 309 MMD CSV files with 5.3M lightning strike records
-- **Functions:**
-  - `scan_lightning_csvs(data_root)`: Finds CSV files, aggregates strike records
-  - `create_labeled_dataset(strikes_df)`: Creates positive samples (all strikes) + negative samples (no-strike days)
-- **Output:** 581 MB HDF5 with 70/15/15 train/val/test split
+2. Validate split integrity, class balance, patch files, and the no-data threshold:
 
 ```bash
-# Ingest MMD data (one-time)
-python src/ingest_met_data.py
-# Output: data/processed/lightning_dataset.h5 (5.38M samples)
+python src/validate_satellite_dataset.py \
+  --manifest data/processed/satellite_dataset.csv \
+  --black-threshold 8 --max-black-fraction 0.02 \
+  --batch-size 32 --num-workers 0
 ```
 
-### Real Occurrence Dataset (`src/build_occurrence_dataset.py`)
-- **Purpose:** Build a genuine space-time occurrence dataset with real no-strike cells
-- **Approach:** Grid Malaysia, bin time, label cell-time as strike/no-strike from observed logs
-- **No circular features:** Uses location + time-derived features only
+3. Train, select the threshold on validation, and evaluate once on test. `src/train_satellite.py` performs those three stages in that order and writes both the checkpoint and metrics artifact:
 
 ```bash
-# Build real occurrence dataset (recommended for honest occurrence modeling)
-python src/build_occurrence_dataset.py --time-freq 1H --negative-ratio 3
-# Output: data/processed/occurrence_dataset.csv
-# Stats: results/occurrence_dataset_stats.json (generated locally, not committed; requires the MMD dataset)
+python src/train_satellite.py \
+  --config config.yaml \
+  --dataset data/processed/satellite_dataset.csv \
+  --epochs 50 --batch-size 32 --eval-batch-size 128 \
+  --device cpu --freeze-backbone --patience 5 --seed 42 \
+  --model-path models/satellite_resnet50_frozen_cpu_clean_best.pth \
+  --results-json results/satellite_frozen_cpu_clean_metrics.json \
+  --log-dir logs/satellite_frozen_cpu_clean
 ```
 
-### Occurrence Baseline Evaluation (`src/evaluate_occurrence_baselines.py`)
-- **Purpose:** Evaluate a clean tabular baseline on the real occurrence dataset
-- **Metrics:** Minority no-strike precision, recall, F1, PR-AUC
+4. Regenerate Figures 5.1–5.8. The script reads the committed metrics schema, generates the example-input grid from the held-out manifest, and reloads the checkpoint for ROC and probability-distribution inference:
 
 ```bash
-# Evaluate clean baseline on chronological train/val/test split
-python src/evaluate_occurrence_baselines.py
-# Output: results/occurrence_baseline_metrics.json (generated locally, not committed; requires the MMD dataset)
+python src/plot_results.py \
+  --metrics-json results/satellite_frozen_cpu_clean_metrics.json \
+  --checkpoint models/satellite_resnet50_frozen_cpu_clean_best.pth \
+  --dataset-csv data/processed/satellite_dataset.csv \
+  --output-dir results/figures --batch-size 128
 ```
 
-### Data Loader (`src/lightning_data_loader.py`)
-- **LightningMetadataDataset:** Lazy-loads metadata features from HDF5
-- **Features:** Normalized latitude, longitude, amplitude, strike type code
-- **Normalization:** Lat [0°N, 6°N], Lon [99.5°E, 104.5°E], Amp clipped [-1, 1]
+Generated outputs under `data/`, `models/`, `logs/`, and `results/figures/` are intentionally gitignored. The committed metrics JSON is the compact numerical record of the final run.
 
-```python
-from src.lightning_data_loader import create_lightning_loaders
+## Data and weights
 
-loaders = create_lightning_loaders('data/processed/lightning_dataset.h5', batch_size=512)
-train_loader = loaders['train']  # 3.77M samples
-val_loader = loaders['val']      # 807K samples
-test_loader = loaders['test']    # 807K samples
-```
-
-### Model Architecture (`src/lightning_model.py`)
-- **LightningMetadataClassifier:** 4-layer MLP with BatchNorm + Dropout
-- **Input:** 4 metadata features (lat, lon, amplitude, strike_type)
-- **Output:** Binary probability [0, 1] via sigmoid
-- **Loss:** Focal Loss for extreme class imbalance (99.84% positive)
-
-```python
-from src.lightning_model import LightningMetadataClassifier, FocalLoss
-
-model = LightningMetadataClassifier(input_size=4, hidden_size=256)
-criterion = FocalLoss(alpha=0.25, gamma=2.0)
-output = model(torch.randn(512, 4))
-```
-
-### Training Loop (`src/train_lightning.py`)
-- **Orchestrator:** Adam optimizer + ReduceLROnPlateau scheduler + Early stopping
-- **Duration:** ~1h 50m on CPU (512 batch, 3.77M train samples)
-- **Convergence:** Stopped at epoch ~12 via early stopping
-- **Loss trajectory:** 0.1122 → 0.0000 (rapid convergence)
-
-```bash
-# Train metadata-based model
-python src/train_lightning.py
-# Output: models/lightning_classifier.pth (0.2 MB)
-```
-
-### Evaluation (`src/evaluate_lightning.py`)
-- **Full evaluation** on the metadata test split
-- **Metrics:** Minority-class precision, recall, F1, PR-AUC, plus ROC-AUC/POD/FAR for reference
-- **Note:** The metadata result should be interpreted cautiously because `amplitude` and `strike_type` are strike-derived features.
-
-```bash
-# Full metadata evaluation
-python src/evaluate_lightning.py
-```
-
-### Full Evaluation (`src/evaluate_lightning.py`)
-- **Full test set** evaluation on all 807K test samples
-- **Metrics:** Minority-class precision, recall, F1, PR-AUC, ROC-AUC, POD, FAR
-- **Note:** Slow on CPU; use `demo_inference.py` for a quick smoke test instead
-
-```bash
-# Full evaluation (CPU: ~10-15 min expected, may timeout)
-python src/evaluate_lightning.py
-```
-
----
-
-## Project Milestones
-
-### ✅ Phase 1: Data Ingestion (COMPLETE)
-- [x] Ingest 309 MMD CSV files
-- [x] Parse 5.3M lightning strike records
-- [x] Create 581 MB HDF5 dataset
-- [x] Generate 70/15/15 train/val/test split (3.77M/807K/807K)
-- [x] Document the extreme class imbalance (99.84% positive)
-
-**To ingest MMD data:**
-```bash
-# One-time ingestion (place CSV files in data/raw/mmd_lightning/)
-python src/ingest_met_data.py
-# Output: data/processed/lightning_dataset.h5 (581 MB)
-```
-
-### ✅ Phase 2: Model Training (COMPLETE)
-- [x] Design metadata-based MLP classifier
-- [x] Implement Focal Loss for class imbalance
-- [x] Train on 3.77M samples
-- [x] Converge in ~1h 50m
-- [x] Early stop at epoch ~12
-
-**To train model:**
-```bash
-python src/train_lightning.py
-# Output: models/lightning_classifier.pth (0.2 MB)
-```
-
-### ✅ Phase 3: Evaluation (COMPLETE)
-- [x] Report honest minority-class metrics for the metadata probe and clean probe
-- [x] Validate metrics on the held-out test split
-- [x] Generate evaluation report
-
-**To evaluate:**
-```bash
-# Full eval (807K test samples, CPU: slow)
-python src/evaluate_lightning.py
-```
-
-### ✅ Phase 4: Production (COMPLETE)
-- [x] Commit all production code to GitHub
-- [x] Document codebase
-- [x] Verify no sensitive data leaked
-- [x] Ready for deployment
-
-**Repository Note:**
-The metadata results above are retrain probes, not deployment claims. The clean lat/lon/time-only variant is the honest baseline; amplitude and strike_type are strike-derived fields and therefore circular for occurrence prediction.
-create mode 100644 src/lightning_model.py
-create mode 100644 src/train_lightning.py
-```
-
----
-
-## Component 2: Satellite CNN (Himawari-8)
-
-Convolutional neural network for satellite-based lightning detection using Himawari-8 64×64 patch imagery.
-
-### Architecture & Configuration (Satellite CNN)
-
-**Model Design:**
-- **Type:** LightningResNet50 (ResNet-50 backbone + custom head)
-- **Input:** 64×64 RGB satellite patches (3 channels)
-- **Output:** Binary classification (lightning vs. no lightning)
-- **Total Parameters:** 23,770,433
-- **Trainable Parameters:** 262,401 (1.1%) — backbone frozen
-- **Training Strategy:** Layer freezing for CPU efficiency
-
-**Training Configuration:**
-- **Loss Function:** FocalLoss (α=0.25, γ=2.0)
-- **Optimizer:** Adam (lr=0.001, gradient_clip=1.0)
-- **Batch Size:** 32 (train), 256 (test)
-- **Device:** CPU only
-- **Max Epochs:** 15
-- **Early Stopping:** patience=5
-- **Duration:** 9.1 hours (vs. 62+ days for full fine-tuning)
-- **Epochs Trained:** 13 (early stopped at plateau)
-
-**Data Splits (Chronologically Separated):**
-- **Train:** 395,952 patches from 6 PNGs (2025-04-18)
-- **Validation:** 38,608 patches from 3 PNGs (2025-04-22)
-- **Test:** 46,796 patches from 2 PNGs (2025-04-22, completely unseen)
-- **Split Integrity:** ✅ Zero PNG overlap between any splits
-
-### Test Evaluation Results (Satellite CNN)
-
-**Classification Metrics (threshold tuned on validation set):**
-| Metric | Value | Interpretation |
-|--------|-------|---|
-| Accuracy | 87.65% | Correct predictions at the tuned operating point |
-| Precision | 86.01% | Fraction of predicted lightning patches that were correct |
-| Recall/POD | 89.93% | Fraction of true lightning patches recovered |
-| F1-Score | 0.8792 | Harmonic mean of precision and recall |
-| **ROC-AUC** | **0.9199** | Ranking quality independent of threshold |
-
-**Key Finding:** The model’s ranking quality is strong, but the default 0.5 threshold is too conservative; the tuned threshold of 0.55 gives a more balanced operating point.
-
-### Baseline Comparison
-
-| Model | Deployment Safety | Why |
-|---|---|---|
-| Metadata model: lat, lon, amplitude, strike_type | Not deployment-safe | `amplitude` and `strike_type` are strike-derived, so the model is circular for occurrence prediction |
-| Clean metadata baseline: lat, lon, time only | Honest but weak | Removes the circular features, so it is a fairer baseline, but it is not the headline result |
-| Satellite CNN: Himawari-8 image-only model | Main result | Uses only satellite pixels and is the strongest FYP contribution |
-
-## Limitations
-
-This project is a capstone research prototype, not an operational warning system.
-
-- The satellite experiment uses a limited set of source PNGs, with training on 2025-04-18 data and validation/test on 2025-04-22 data.
-- The geographic scope is Malaysia-only, so the model has not been validated for other regions.
-- The lightning labels come from a single provider, the Malaysian Meteorological Department.
-- More testing across seasons, weather regimes, and years is needed before any broader operational claim.
-
-### Satellite CNN Milestones (COMPLETE)
-
-**Phase 1: Diagnosis**
-- [x] Identified CPU bottleneck: ~10 sec/batch → 62+ days projected
-- [x] Root cause: Full ResNet-50 fine-tuning on CPU
-- [x] Solution: Layer freezing strategy (backbone frozen, head trainable)
-
-**Phase 2: Implementation**
-- [x] Implemented parameter freezing (23.7M → 262K trainable)
-- [x] Verified gradient flow and parameter updates
-- [x] Created optimized training script
-
-**Phase 3: Training**
-- [x] Fresh training from scratch on corrected split
-- [x] Achieved 9.1-hour CPU training (160x speedup)
-- [x] Early stopped at epoch 13 (no improvement)
-- [x] Saved 91 MB checkpoint
-
-**Phase 4: Evaluation & Reporting**
-- [x] Test evaluation on 46,796 unseen patches
-- [x] Computed all metrics: accuracy, precision, recall, F1, ROC-AUC, FAR, CSI, TSS, HSS
-- [x] Generated comprehensive report with findings
-- [x] Verified split integrity: Zero PNG leakage
-
-**Reports & Documentation:**
-- `SATELLITE_MODEL_FRESH_REPORT.md` — Comprehensive training report with metrics and recommendations
-- `FRESH_TRAINING_STATUS.md` — Detailed training status and logs
-- `TRAINING_FAILURE_DIAGNOSIS.md` — Root cause analysis (archived reference)
-
----
-
-## Testing
-
-Run all tests:
-```bash
-python -m pytest tests -q
-```
-
-Run a metadata smoke test:
-```bash
-python -m pytest tests/test_metadata_pipeline.py -q
-```
-
----
-
-## Hardware Requirements
-
-### Current System (Metadata-Based MLP)
-- **GPU:** Not required (runs on CPU)
-- **CPU:** Any modern processor
-- **RAM:** 8 GB minimum (16 GB recommended)
-- **Storage:** ~1 GB (581 MB dataset + 0.2 MB model + overhead)
-- **Training time:** ~1h 50m (CPU, batch_size=512)
-
-### Optional: GPU Acceleration
-- **GPU:** NVIDIA (any with >2 GB VRAM)
-- **Expected speedup:** 10-20x faster training
-- **Estimated GPU training time:** ~5-10 minutes
-- **Memory needed:** ~500 MB GPU VRAM
-
-### Previous System (ResNet-50, for reference)
-- **GPU:** NVIDIA RTX 3050 (8 GB VRAM) required
-- **RAM:** 16 GB system RAM
-- **Training time:** ~24–48 hrs per epoch
-- **Note:** Legacy satellite imagery model; currently replaced by metadata approach
-
----
+Raw MMD CSVs are licensed research data and are not redistributable through this repository. Himawari Level-1b imagery is fetched anonymously from the public NOAA S3 archives by Satpy/s3fs; the 2023–2025 aligned run uses Himawari-9 because Himawari-8 moved to standby in December 2022. Downloaded imagery, derived patches, manifests, and model checkpoints are large generated artifacts and are gitignored.
 
 ## Troubleshooting
 
-### Dataset Not Found (`lightning_dataset.h5`)
-```bash
-# Run data ingestion to create dataset
-python src/ingest_met_data.py
-# Requires MMD CSV files in: data/raw/mmd_lightning/
-```
+- If the builder reports missing satellite dependencies, install the full pinned environment with `pip install -r requirements.txt`.
+- If the builder cannot find MMD records, confirm that files named `raw data all.csv` exist below the path passed to `--lightning-root`.
+- If validation reports missing patches, rebuild or restore `data/processed/himawari_mmd_patches/`; the manifest alone is insufficient.
+- If plotting reports a missing checkpoint or manifest, regenerate those gitignored artifacts with steps 1–3 above.
+- For GPU training, install the matching PyTorch build from the official PyTorch index and pass `--device cuda`; the reported final run used CPU with a frozen backbone.
 
-If the raw MMD files are unavailable, the repository can still be exercised with the shipped demo script once the processed HDF5 and model checkpoint exist. To obtain the full dataset, request the MMD CSV export or place the files under data/raw/mmd_lightning/ before running ingestion.
+## Documentation, license, and attribution
 
-For the satellite result, the equivalent local requirement is `data/processed/satellite_dataset.csv` plus `models/satellite_resnet50_fresh.pth`.
+The supplied FYP report is the narrative source of truth. Repository cleanup decisions and unverifiable local-artifact items are recorded in [CLEANUP_NOTES.md](CLEANUP_NOTES.md), while superseded prototype documents remain in [docs/archive/](docs/archive/README.md). The report package index is [report/README.md](report/README.md).
 
-### Model File Not Found (`lightning_classifier.pth`)
-```bash
-# Run training to generate model
-python src/train_lightning.py
-# Output: models/lightning_classifier.pth (0.2 MB)
-```
-
-For a one-command smoke test once the data and weights are present:
-```bash
-python demo_inference.py
-```
-
-### Import Errors or Missing Dependencies
-```bash
-# Reinstall dependencies
-pip install -r requirements.txt --force-reinstall
-```
-
-### Slow Evaluation on CPU
-- Full test evaluation on 807K samples is slow on CPU
-- **Workaround:** Use `demo_inference.py` for a quick smoke test once the processed dataset and model weights are present
-- **Alternative:** Enable GPU acceleration if available
-
-### PyTorch Compatibility Issues
-```bash
-# Verified working versions:
-# PyTorch 2.12.0 (CPU)
-# Torchvision 0.27.0
-# NumPy 1.24.0+
-# H5py 3.0.0+
-
-# If errors occur, reinstall:
-pip uninstall torch torchvision -y
-pip install torch==2.12.0 torchvision==0.27.0 --index-url https://download.pytorch.org/whl/cpu
-```
-
----
-
-## Documentation
-
-- **Project notes:** [Project Capstone](Project%20Capstone) (repository root)
-
----
-
-## License & Attribution
-
-**Author:** Chai Wen Cheng (23073679)  
-**Supervisor:** Associate Professor Ir Ts. Dr Wong Shen Yuong  
-**Institution:** Sunway University, School of Computing and Artificial Intelligence
-
----
-
-## References
-
-- Cintineo et al. (2022). LightningCast: A Convolutional Recurrent Neural Network for Lightning Prediction
-- Lee & Suh (2024). Lightning prediction with GK2A geostationary satellite imagery
-- He et al. (2016). Deep Residual Learning for Image Recognition (ResNet)
-- Lin et al. (2017). Focal Loss for Dense Object Detection
-
----
-
----
-
-## Performance Summary
-
-The metadata probe rows below are an honest leakage demonstration, not a headline result. They are generated locally from the MMD dataset and are not committed artifacts.
-
-| Metric | Result | Notes |
-|--------|--------|--------|
-| Leaky probe — NOT a valid result (uses strike-derived features): Metadata no-strike precision | 1.0000 | Retrained probe on the current synthetic-negative feature set |
-| Leaky probe — NOT a valid result (uses strike-derived features): Metadata no-strike recall | 1.0000 | Same probe |
-| Leaky probe — NOT a valid result (uses strike-derived features): Metadata no-strike F1 | 1.0000 | Same probe |
-| Leaky probe — NOT a valid result (uses strike-derived features): Metadata no-strike PR-AUC | 1.0000 | Same probe |
-| Clean lat/lon/time no-strike precision | 1.0000 | Much weaker, because the circular strike-derived features are removed |
-| Clean lat/lon/time no-strike recall | 0.1087 | Same probe |
-| Clean lat/lon/time no-strike F1 | 0.1961 | Same probe |
-| Clean lat/lon/time no-strike PR-AUC | 0.2966 | Same probe |
-| Satellite ROC-AUC | 0.9199 | Good ranking performance independent of threshold |
-| Satellite accuracy at tuned threshold | 87.65% | Threshold 0.55 selected on validation data |
-| Satellite precision | 86.01% | At the tuned threshold |
-| Satellite recall | 89.93% | At the tuned threshold |
-| Satellite F1 | 0.8792 | At the tuned threshold |
-
-Metadata artifact files from the final pass (generated locally, not committed; requires the MMD dataset):
-- `results/metadata_honest_probe_metrics.json`
-- `models/lightning_classifier_metadata_probe.pth`
-- `models/lightning_classifier_clean_probe.pth`
-
----
-
-**Last Updated:** 2026-06-26  
-**Status:** The repository now documents the metadata leakage concern and reports the satellite model at its tuned operating point rather than at the default 0.5 threshold.
+The code is released under the [MIT License](LICENSE). MMD data remain subject to their provider’s terms and are not covered by that code license. Himawari imagery should be attributed to the Japan Meteorological Agency and the NOAA public archive used for access.

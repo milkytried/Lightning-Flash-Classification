@@ -42,6 +42,7 @@ results/plots/
 results/figures/
 results/*.json
 results/*.png
+!results/satellite_frozen_cpu_clean_metrics.json
 report/**
 !report/
 !report/README.md

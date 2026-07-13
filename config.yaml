@@ -1,45 +1,47 @@
-# Lightning Flash Classification — Configuration
+# Lightning Flash Classification - final aligned-run configuration
 # Author: Chai Wen Cheng
-# Project: CNN-based classification of cloud-to-ground lightning using Himawari-8
-#
-# This config documents the current aligned Himawari -> MMD satellite CNN run.
-# The metadata MLP is a separate leakage-aware baseline and uses the settings
-# noted in its own section at the bottom.
+# Project: CNN-based classification of cloud-to-ground lightning using Himawari-9
 
 project:
   name: "Lightning Flash Classification"
-  description: "Satellite CNN for cloud-to-ground lightning classification (Himawari-8)"
+  description: "Aligned Himawari-9 and MMD satellite CNN for same-time lightning classification"
   version: "1.0"
 
-# ---------------------------------------------------------------------------
-# HEADLINE MODEL: Himawari-8 satellite CNN (image-pixels-only classifier)
-# ---------------------------------------------------------------------------
+# HEADLINE MODEL: Himawari-9 satellite CNN (image-pixels-only classifier)
 data:
-  # NOTE: raw data and processed artifacts are gitignored (see .gitignore).
-  # Regenerate locally with the ingestion/preprocessing scripts before training.
-  raw_himawari_dir: "data/raw/himawari8_pngs/"
+  # Raw data and processed artifacts are gitignored.
+  raw_himawari_dir: "data/raw/himawari_hsd/"
   raw_mmd_csv: "data/raw/mmd_lightning/"
   satellite_dataset_csv: "data/processed/satellite_dataset.csv"
-  region_bbox: [100.0, 120.0, -5.0, 15.0]   # [lon_min, lon_max, lat_min, lat_max]
+  # Matches MALAYSIA_BOUNDS in src/build_satellite_dataset.py.
+  region_bbox: [99.0, 120.0, -5.0, 15.0]   # [lon_min, lon_max, lat_min, lat_max]
+  satellite: "Himawari-9"
+  bands: ["B08", "B13", "B15"]
+  aligned_patch_count: 41168
+  split_counts: {train: 33226, val: 3324, test: 4618}
 
 preprocessing:
-  patch_size: 64          # pixels (64x64 RGB patches)
-  num_channels: 3         # RGB satellite patch
-  normalization: "imagenet"   # ImageNet mean/std (ResNet-50 backbone)
-  # Split is chronological by Himawari frame/date, using the manifest split column.
-  # The aligned 2023-2025 dataset has no date overlap across train/val/test.
+  patch_size: 64
+  num_channels: 3
+  channel_order: ["B08", "B13", "B15"]
+  normalization: "imagenet"
+  split_strategy: "chronological_by_frame_date"
+  max_patch_black_fraction: 0.02
+  # The aligned 2023-2025 dataset has no date overlap across splits.
 
 model:
-  architecture: "ResNet50"   # LightningResNet50: ImageNet backbone + custom head
+  architecture: "ResNet50"
   pretrained: true
-  freeze_backbone: true      # verified frozen CPU run: train classifier head only
+  freeze_backbone: true
   num_input_channels: 3
-  num_classes: 1             # binary, sigmoid output
+  num_classes: 1
   dropout: 0.5
+  trainable_parameters: 262401
+  frozen_parameters: 23508032
 
 train:
-  batch_size: 32             # verified CPU run
-  eval_batch_size: 128       # val / test
+  batch_size: 32
+  eval_batch_size: 128
   max_epochs: 50
   backbone_learning_rate: 0.00001
   head_learning_rate: 0.001
@@ -53,9 +55,9 @@ train:
   device: "cpu"
 
 evaluation:
-  # The decision threshold is selected on VALIDATION only (F1-max), then frozen
-  # and applied once to TEST. Do not re-tune this on the test set.
+  # Select on validation only, freeze, then apply once to test.
   threshold_selection: "validation_f1_max"
+  selected_threshold: 0.51
   compute_roc: true
   save_confusion_matrix: true
 
@@ -64,13 +66,10 @@ paths:
   results_dir: "results/"
   logs_dir: "logs/"
 
-# ---------------------------------------------------------------------------
 # BASELINE ONLY (NOT a deployment result): lightning metadata MLP
-# ---------------------------------------------------------------------------
-# Retained as a leakage lesson. amplitude and strike_type are strike-derived
-# fields (they exist only because a strike was detected), so using them to predict
-# strike occurrence is circular. The clean lat/lon/time-only variant is the honest
-# comparator. Settings for reference only:
+# amplitude and strike_type are strike-derived fields, so the apparent perfect
+# score is label leakage. See scripts/retrain_honest_artifacts.py.
+# Reference settings:
 #   input_features: [lat, lon, amplitude, strike_type]
 #   hidden_size: 256
 #   batch_size: 512

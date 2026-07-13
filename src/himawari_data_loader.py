@@ -1,5 +1,8 @@
 """
-PyTorch DataLoader for Himawari-8 satellite image patches.
+PyTorch DataLoader for satellite image patches.
+
+Shared by the final aligned Himawari-9 run and the archived 11-PNG
+Himawari-8 prototype; the manifest determines the source dataset.
 
 Loads 64×64 image patches with binary labels for CNN training.
 """
@@ -24,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 class HimawariPatchDataset(Dataset):
     """
-    PyTorch Dataset for Himawari-8 satellite image patches.
+    PyTorch Dataset for Himawari image patches.
     
     Loads 64×64 patches with binary labels (lightning vs no lightning).
     """
