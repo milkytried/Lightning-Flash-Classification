@@ -1,0 +1,54 @@
+# Cleanup notes
+
+This cleanup aligns the submission repository with Chapters 3–5 of `FYP_Full_Report.docx`. No model was retrained, and no model, data-pipeline, threshold-selection, or evaluation logic was changed.
+
+## Stale claims corrected
+
+- The root README promoted the earlier Himawari-8 experiment and its 11-PNG metrics as the final result. It was rewritten around the aligned Himawari-9 / MMD run and now contains one performance table with the report values only.
+- The README’s metadata framing treated the apparent perfect metadata score as an achievement. It now identifies `amplitude` and `strike_type` as circular strike-derived inputs and presents the MLP only as a leakage demonstration/negative result.
+- The README project tree omitted nine committed source modules and referenced nonexistent or gitignored documentation. The tree now matches `src/`, the `quick_eval.py` and `_bmad-output/` references are gone, and every reproduction/troubleshooting command names a committed producer or explicitly identified generated artifact.
+- `config.yaml` described the aligned run as Himawari-8, called the three infrared channels RGB, and used a 100°E western bound. It now documents Himawari-9, B08/B13/B15, the report counts, and `region_bbox: [99.0, 120.0, -5.0, 15.0]`, matching `MALAYSIA_BOUNDS` in `src/build_satellite_dataset.py`.
+- General package/loader descriptions implied that all satellite work used Himawari-8. They now identify Himawari-9 as the final aligned run and explicitly scope Himawari-8 to the historical prototype.
+- `report/README.md` indexed old “final” prototype material, source snapshots, and PNG paths that are absent from a fresh clone. It now points to the final README and committed metrics record and marks the checkpoint, manifest, patches, and figures as gitignored generated artifacts.
+- The old audit claimed `train_fresh_optimized.py` and local artifacts were available, while status notes also cited `monitor_fresh_training.py`. Those documents were archived with a header stating that their path assertions are historical and may refer to moved or gitignored files.
+- The “final summary,” viva summary, and panel notes still called the 11-PNG Himawari-8 run the final FYP result. They were archived and explicitly superseded.
+- `src/plot_results.py` generated only Figures 5.2–5.8 and defaulted to the pre-correction artifact names. It now generates the held-out example grid for Figure 5.1, uses the final clean-run defaults, and still reloads the checkpoint for ROC/probability inference. A local full run regenerated all eight figures and reproduced ROC-AUC 0.968127 from the checkpoint, matching the JSON.
+- Unit tests instantiated pretrained ResNet-50 weights by default. Tests now pass `pretrained=False` so a fresh clone does not need a weight download. Data-dependent metadata/ingestion tests retain explicit skip guards.
+- The CI comment still described skip guards as a handoff item. It now states the implemented offline/artifact policy.
+- The README had a license heading without a license. An MIT `LICENSE` was added.
+- The final numerical artifact was gitignored. `results/satellite_frozen_cpu_clean_metrics.json` is now the committed traceable record; checkpoints and generated figures remain ignored.
+
+## Files moved
+
+- `FRESH_TRAINING_STATUS.md` → `docs/archive/FRESH_TRAINING_STATUS.md` — earlier prototype training status.
+- `SATELLITE_MODEL_FRESH_REPORT.md` → `docs/archive/SATELLITE_MODEL_FRESH_REPORT.md` — earlier prototype evaluation.
+- `TRAINING_FAILURE_DIAGNOSIS.md` → `docs/archive/TRAINING_FAILURE_DIAGNOSIS.md` — failed training diagnosis preceding the prototype.
+- `report/audit/FINAL_AUDIT.md` → `docs/archive/FINAL_AUDIT.md` — audit of the 11-PNG baseline.
+- `report/final_summary/FINAL_PROJECT_SUMMARY.md` → `docs/archive/FINAL_PROJECT_SUMMARY.md` — superseded prototype summary.
+- `report/final_summary/FYP_VIVA_SUMMARY.md` → `docs/archive/FYP_VIVA_SUMMARY.md` — superseded prototype viva notes.
+- `report/qa_prep/PANEL_QA_PREP.md` → `docs/archive/PANEL_QA_PREP.md` — superseded prototype panel notes.
+- `eval_test_fresh.py` → `scripts/eval_test_fresh.py` — retained producer for the earlier baseline evaluation artifact.
+- `tune_threshold.py` → `scripts/tune_threshold.py` — retained producer for the Table 5.2 baseline threshold/metrics.
+- `retrain_honest_artifacts.py` → `scripts/retrain_honest_artifacts.py` — retained metadata leakage/honest-comparator generator.
+- `complete_fresh_training.py` → `scripts/archive/complete_fresh_training.py` — dead prototype orchestrator superseded by `src/train_satellite.py` and `src/plot_results.py`.
+- `generate_metadata_fresh.py` → `scripts/archive/generate_metadata_fresh.py` — superseded prototype metadata generator.
+- `demo_inference.py` → `scripts/archive/demo_inference.py` — metadata-MLP demo unrelated to the final satellite result.
+
+No tracked source or audit file was silently deleted. Locally ignored logs, caches, datasets, checkpoints, and scratch files were left untouched because they are not part of a fresh clone.
+
+## Verification and explicit limitations
+
+Verified:
+
+- The final full local suite passed with 63 tests passed and 1 artifact-dependent skip.
+- All eight result figures were regenerated locally from `results/satellite_frozen_cpu_clean_metrics.json`, `models/satellite_resnet50_frozen_cpu_clean_best.pth`, and `data/processed/satellite_dataset.csv`. Checkpoint inference recomputed ROC-AUC as 0.968127, identical to the JSON value.
+- The exact pinned requirements resolve for Python 3.10, 3.11, and 3.12 with the package indexes configured in `requirements.txt`. A pip Python 3.12 dry run also resolved every package, including `torch==2.12.1+cpu`, `torchvision==0.27.1+cpu`, Satpy, pyresample, s3fs, and boto3. No nonexistent pin was found.
+- A clean local clone at commit `a97357d` successfully completed `pip install -r requirements.txt` under Python 3.12, then ran `pytest tests -q` with 58 tests passed and 6 expected artifact-dependent skips. No data or model weights were present.
+
+Could not verify from a fresh clone alone:
+
+- Raw MMD CSV contents, strike counts, and licensing constraints beyond the supplied report, because the MMD source data are non-redistributable and gitignored.
+- Dataset reconstruction byte-for-byte without those MMD CSVs and the downloaded NOAA cache.
+- Training reproduction or checkpoint byte identity without rerunning training; retraining was explicitly prohibited.
+- Figure/metric checkpoint inference on another machine without the gitignored checkpoint and derived dataset. The workflow was verified against the local artifacts, but a fresh clone correctly lacks them.
+- Whether the university mandates a license other than MIT; no such requirement was present in the repository or supplied brief, so the requested MIT default was used.
