@@ -128,7 +128,7 @@ python src/plot_results.py \
   --metrics-json results/satellite_frozen_cpu_clean_metrics.json \
   --checkpoint models/satellite_resnet50_frozen_cpu_clean_best.pth \
   --dataset-csv data/processed/satellite_dataset.csv \
-  --output-dir results/figures --batch-size 128
+  --output-dir results/figures --batch-size 128 --seed 42
 ```
 
 Generated outputs under `data/`, `models/`, `logs/`, and `results/figures/` are intentionally gitignored. The committed metrics JSON is the compact numerical record of the final run.

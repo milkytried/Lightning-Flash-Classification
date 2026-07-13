@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -150,38 +151,159 @@ def plot_confusion_matrix(metrics: dict[str, Any], output_dir: Path) -> None:
     save_figure(fig, output_dir / "confusion_matrix.png")
 
 
-def plot_example_input_patches(dataset_csv: Path, output_dir: Path, samples_per_class: int = 4) -> None:
-    """Plot deterministic held-out examples for Figure 5.1."""
+def select_example_input_rows(
+    manifest: pd.DataFrame,
+    samples_per_class: int = 4,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Select temporally diverse test patches with at most one row per frame."""
 
-    require_file(dataset_csv, "dataset manifest")
-    manifest = pd.read_csv(dataset_csv)
-    required = {"path", "label", "split"}
+    required = {"path", "label", "split", "timestamp", "frame_id"}
     missing = sorted(required.difference(manifest.columns))
     if missing:
         raise ValueError(f"Dataset manifest is missing required columns: {missing}")
 
     test_rows = manifest[manifest["split"].astype(str).str.casefold() == "test"].copy()
-    class_rows = []
-    for label in (1, 0):
-        rows = test_rows[test_rows["label"].astype(int) == label].head(samples_per_class)
-        if len(rows) < samples_per_class:
-            raise ValueError(
-                f"Need at least {samples_per_class} test patches with label {label}; found {len(rows)}"
-            )
-        class_rows.append(rows)
+    test_rows = test_rows.reset_index(drop=True)
+    test_rows["_test_index"] = np.arange(len(test_rows), dtype=int)
+    test_rows["_frame_timestamp"] = pd.to_datetime(test_rows["timestamp"], utc=True, errors="coerce")
+    if test_rows["_frame_timestamp"].isna().any():
+        bad_paths = test_rows.loc[test_rows["_frame_timestamp"].isna(), "path"].head(5).tolist()
+        raise ValueError(f"Test manifest contains invalid frame timestamps for: {bad_paths}")
+    if test_rows["frame_id"].isna().any():
+        raise ValueError("Test manifest contains rows without frame_id")
 
-    fig, axes = plt.subplots(2, samples_per_class, figsize=(2.4 * samples_per_class, 5.0))
+    selected_groups: list[pd.DataFrame] = []
+    for label, class_name in ((1, "lightning"), (0, "no-lightning")):
+        class_rows = test_rows[test_rows["label"].astype(int) == label].copy()
+        rng = np.random.default_rng(np.random.SeedSequence([seed, label]))
+
+        one_per_frame = []
+        for _frame_id, frame_rows in class_rows.groupby("frame_id", sort=False):
+            frame_rows = frame_rows.sort_values(["path", "_test_index"], kind="stable")
+            chosen_position = int(rng.integers(0, len(frame_rows)))
+            one_per_frame.append(frame_rows.iloc[chosen_position])
+
+        if one_per_frame:
+            distinct_frames = (
+                pd.DataFrame(one_per_frame)
+                .sort_values(["_frame_timestamp", "frame_id"], kind="stable")
+                .reset_index(drop=True)
+            )
+        else:
+            distinct_frames = class_rows.iloc[0:0].copy()
+
+        distinct_count = len(distinct_frames)
+        if distinct_count < samples_per_class:
+            warnings.warn(
+                f"Requested {samples_per_class} {class_name} examples but the test split "
+                f"contains only {distinct_count} distinct source frames; using one patch "
+                "from each available frame without duplication.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            chosen_frames = distinct_frames
+        else:
+            spaced_indices = np.rint(
+                np.linspace(0, distinct_count - 1, num=samples_per_class)
+            ).astype(int)
+            chosen_frames = distinct_frames.iloc[spaced_indices].copy()
+
+        selected_groups.append(chosen_frames)
+
+    if not selected_groups:
+        return test_rows.iloc[0:0].copy()
+    return pd.concat(selected_groups, ignore_index=True)
+
+
+def plot_example_input_patches(
+    dataset_csv: Path,
+    output_dir: Path,
+    probabilities: np.ndarray,
+    samples_per_class: int = 4,
+    seed: int = 42,
+) -> list[dict[str, Any]]:
+    """Plot auditable, temporally diverse held-out examples for Figure 5.1."""
+
+    require_file(dataset_csv, "dataset manifest")
+    manifest = pd.read_csv(dataset_csv)
+    test_rows = manifest[manifest["split"].astype(str).str.casefold() == "test"].reset_index(drop=True)
+    probabilities = np.asarray(probabilities, dtype=np.float64)
+    if len(probabilities) != len(test_rows):
+        raise ValueError(
+            "Probability count does not match test manifest rows: "
+            f"{len(probabilities)} probabilities for {len(test_rows)} rows"
+        )
+
+    selected = select_example_input_rows(
+        manifest,
+        samples_per_class=samples_per_class,
+        seed=seed,
+    ).copy()
+    if not selected.empty:
+        selected["probability"] = probabilities[selected["_test_index"].to_numpy(dtype=int)]
+
+    fig, axes = plt.subplots(2, samples_per_class, figsize=(2.5 * samples_per_class, 5.2))
     row_titles = ["Lightning", "No lightning"]
-    for row_index, rows in enumerate(class_rows):
-        for col_index, (_, row) in enumerate(rows.iterrows()):
+    for row_index, label in enumerate((1, 0)):
+        row_samples = selected[selected["label"].astype(int) == label].reset_index(drop=True)
+        for col_index in range(samples_per_class):
+            ax = axes[row_index, col_index]
+            ax.axis("off")
+            if col_index >= len(row_samples):
+                ax.text(0.5, 0.5, "No distinct frame", ha="center", va="center", color="0.45")
+                continue
+
+            row = row_samples.iloc[col_index]
             patch_path = require_file(Path(str(row["path"])), "held-out patch")
             with Image.open(patch_path) as image:
-                axes[row_index, col_index].imshow(image.convert("RGB"))
-            axes[row_index, col_index].axis("off")
+                ax.imshow(image.convert("RGB"))
+            ax.set_title(f"p = {float(row['probability']):.2f}", fontsize=10)
             if col_index == 0:
-                axes[row_index, col_index].set_ylabel(row_titles[row_index], fontsize=11)
-    fig.suptitle("Held-Out Himawari-9 Infrared Patches (B08/B13/B15)")
+                ax.text(
+                    -0.12,
+                    0.5,
+                    row_titles[row_index],
+                    transform=ax.transAxes,
+                    ha="right",
+                    va="center",
+                    fontsize=11,
+                    fontweight="bold",
+                )
+
+    fig.suptitle(
+        "Held-Out Himawari-9 Infrared Patches "
+        "(R=B08 6.2um, G=B13 10.4um, B=B15 12.4um)"
+    )
     save_figure(fig, output_dir / "example_input_patches.png")
+
+    selections = [
+        {
+            "label": int(row["label"]),
+            "class_name": "Lightning" if int(row["label"]) == 1 else "No lightning",
+            "path": str(row["path"]),
+            "frame_id": str(row["frame_id"]),
+            "frame_timestamp": pd.Timestamp(row["_frame_timestamp"]).isoformat(),
+            "test_index": int(row["_test_index"]),
+            "predicted_probability": float(row["probability"]),
+        }
+        for _, row in selected.iterrows()
+    ]
+    sidecar = {
+        "seed": int(seed),
+        "samples_per_class_requested": int(samples_per_class),
+        "frame_identifier_column": "frame_id",
+        "frame_timestamp_column": "timestamp",
+        "dataset_manifest": str(dataset_csv),
+        "selections": selections,
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    selection_path = output_dir / "example_input_patches_selection.json"
+    with selection_path.open("w", encoding="utf-8") as handle:
+        json.dump(sidecar, handle, indent=2)
+        handle.write("\n")
+    return selections
+
 
 def collect_probabilities(checkpoint_path: Path, dataset_csv: Path, batch_size: int) -> tuple[np.ndarray, np.ndarray]:
     require_file(checkpoint_path, "model checkpoint")
@@ -303,6 +425,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset-csv", type=Path, default=Path("data/processed/satellite_dataset.csv"))
     parser.add_argument("--output-dir", type=Path, default=Path("results/figures"))
     parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
 
@@ -313,7 +436,6 @@ def main() -> None:
     json_auc = float(test_metrics["roc_auc"])
     threshold = float(metrics.get("selected_threshold", test_metrics.get("threshold", 0.5)))
 
-    plot_example_input_patches(args.dataset_csv, args.output_dir)
     plot_training_curves(metrics, args.output_dir)
     plot_validation_metrics(metrics, args.output_dir)
     plot_confusion_matrix(metrics, args.output_dir)
@@ -321,6 +443,19 @@ def main() -> None:
     plot_meteorological_metrics(metrics, args.output_dir)
 
     probabilities, labels = collect_probabilities(args.checkpoint, args.dataset_csv, args.batch_size)
+    test_manifest = pd.read_csv(args.dataset_csv)
+    test_labels = (
+        test_manifest[test_manifest["split"].astype(str).str.casefold() == "test"]["label"]
+        .to_numpy(dtype=np.int64)
+    )
+    if not np.array_equal(labels, test_labels):
+        raise RuntimeError("Inference labels do not align with test manifest row order")
+    plot_example_input_patches(
+        args.dataset_csv,
+        args.output_dir,
+        probabilities,
+        seed=args.seed,
+    )
     recomputed_auc = plot_roc_curve(probabilities, labels, json_auc, args.output_dir)
     plot_probability_histogram(probabilities, labels, threshold, args.output_dir)
 
@@ -332,6 +467,7 @@ def main() -> None:
         print(f"{path} {path.stat().st_size} bytes")
     print(f"Recomputed test ROC-AUC: {recomputed_auc:.6f}")
     print(f"JSON test ROC-AUC: {json_auc:.6f}")
+    print(f"Example selection: {args.output_dir / 'example_input_patches_selection.json'}")
 
 
 if __name__ == "__main__":

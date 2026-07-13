@@ -52,3 +52,7 @@ Could not verify from a fresh clone alone:
 - Training reproduction or checkpoint byte identity without rerunning training; retraining was explicitly prohibited.
 - Figure/metric checkpoint inference on another machine without the gitignored checkpoint and derived dataset. The workflow was verified against the local artifacts, but a fresh clone correctly lacks them.
 - Whether the university mandates a license other than MIT; no such requirement was present in the repository or supplied brief, so the requested MIT default was used.
+
+## Figure 5.1 selection correction
+
+The original Figure 5.1 helper used the first four test-manifest rows per class. Because the manifest is grouped by source frame, this selected near-duplicate lightning patches from one 10-minute scene. The reporting code now deduplicates each class by the manifest's `frame_id`, uses `timestamp` to choose evenly spaced frames across the test period, and uses fixed seed 42 to select one reproducible patch within each chosen frame. It reuses the existing checkpoint inference probabilities for panel annotations and writes the exact paths, frame timestamps, probabilities, and seed to `results/figures/example_input_patches_selection.json`. No dataset, model, threshold, or evaluation logic changed.
