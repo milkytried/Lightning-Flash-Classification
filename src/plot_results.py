@@ -24,7 +24,7 @@ from PIL import Image
 from sklearn.metrics import roc_auc_score, roc_curve
 
 from himawari_data_loader import HimawariPatchDataset, create_himawari_loaders
-from train_satellite import SatelliteTrainer
+from train_satellite import SatelliteTrainer, positive_class_metrics
 
 
 FIGURE_SPECS = {
@@ -36,6 +36,7 @@ FIGURE_SPECS = {
     "baseline_comparison.png": "Old frozen-backbone baseline versus new aligned-dataset frozen model.",
     "meteorological_metrics.png": "Meteorological verification metrics on the held-out test split.",
     "probability_histogram.png": "Held-out test probability distribution by true class.",
+    "threshold_sensitivity.png": "Held-out test recall and precision across decision thresholds.",
 }
 
 
@@ -390,7 +391,12 @@ def plot_example_input_patches(
         handle.write("\n")
     return selections
 
-def collect_probabilities(checkpoint_path: Path, dataset_csv: Path, batch_size: int) -> tuple[np.ndarray, np.ndarray]:
+def collect_probabilities(
+    checkpoint_path: Path,
+    dataset_csv: Path,
+    batch_size: int,
+    split: str = "test",
+) -> tuple[np.ndarray, np.ndarray]:
     require_file(checkpoint_path, "model checkpoint")
     require_file(dataset_csv, "dataset manifest")
 
@@ -407,21 +413,21 @@ def collect_probabilities(checkpoint_path: Path, dataset_csv: Path, batch_size: 
         batch_size=batch_size,
         num_workers=0,
     )
-    if "test" not in loaders:
-        raise ValueError("create_himawari_loaders did not return a test loader")
+    if split not in loaders:
+        raise ValueError(f"create_himawari_loaders did not return a {split} loader")
 
     probabilities: list[np.ndarray] = []
     labels: list[np.ndarray] = []
     trainer.model.eval()
     with torch.no_grad():
-        for images, batch_labels in loaders["test"]:
+        for images, batch_labels in loaders[split]:
             images = images.to(trainer.device)
             outputs = trainer.model(images).squeeze(-1).detach().cpu().numpy()
             probabilities.append(outputs.astype(np.float64, copy=False))
             labels.append(batch_labels.detach().cpu().numpy().astype(np.int64, copy=False))
 
     if not probabilities:
-        raise ValueError("The test loader produced no batches")
+        raise ValueError(f"The {split} loader produced no batches")
     return np.concatenate(probabilities), np.concatenate(labels)
 
 
@@ -443,6 +449,157 @@ def summarize_positive_probabilities(
         "q3": float(q3),
         "fraction_above_0_9": float(np.mean(positive_probabilities > 0.9)),
     }
+
+
+def summarize_negative_probabilities(
+    probabilities: np.ndarray,
+    labels: np.ndarray,
+) -> dict[str, float]:
+    """Summarize held-out negative-class lightning probabilities."""
+
+    negative_probabilities = np.asarray(probabilities, dtype=np.float64)[
+        np.asarray(labels, dtype=np.int64) == 0
+    ]
+    if not len(negative_probabilities):
+        raise ValueError("Cannot summarize negative probabilities: no negative labels")
+    q1, median, q3 = np.quantile(negative_probabilities, [0.25, 0.5, 0.75])
+    return {
+        "median": float(median),
+        "q1": float(q1),
+        "q3": float(q3),
+        "fraction_below_0_1": float(np.mean(negative_probabilities < 0.1)),
+    }
+
+
+def threshold_sensitivity_rows(
+    probabilities: np.ndarray,
+    labels: np.ndarray,
+    thresholds: np.ndarray | None = None,
+) -> list[dict[str, Any]]:
+    """Compute positive-class metrics across an auditable threshold grid."""
+
+    if thresholds is None:
+        thresholds = np.arange(30, 81, dtype=np.int64) / 100.0
+    return [
+        {
+            key: metrics[key]
+            for key in ("threshold", "recall", "pod", "precision", "far", "f1")
+        }
+        for threshold in np.asarray(thresholds, dtype=np.float64)
+        for metrics in [positive_class_metrics(labels, probabilities, float(threshold))]
+    ]
+
+
+def first_threshold_at_or_below_recall(
+    rows: list[dict[str, Any]],
+    target_recall: float = 0.90,
+) -> float | None:
+    """Return the first grid threshold whose recall is at or below the target."""
+
+    for row in rows:
+        if float(row["recall"]) <= target_recall:
+            return float(row["threshold"])
+    return None
+
+
+def sensitivity_report_points(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Extract the report-requested grid points from a sensitivity table."""
+
+    by_threshold = {round(float(row["threshold"]), 2): row for row in rows}
+    required = (0.51, 0.60, 0.65, 0.70)
+    missing = [threshold for threshold in required if threshold not in by_threshold]
+    if missing:
+        raise ValueError(f"Sensitivity rows are missing required thresholds: {missing}")
+    operating = by_threshold[0.51]
+    return {
+        "recall_at_0_51": float(operating["recall"]),
+        "f1_at_0_51": float(operating["f1"]),
+        "precision_at_0_51": float(operating["precision"]),
+        "far_at_0_51": float(operating["far"]),
+        "recall_at_0_60": float(by_threshold[0.60]["recall"]),
+        "recall_at_0_65": float(by_threshold[0.65]["recall"]),
+        "recall_at_0_70": float(by_threshold[0.70]["recall"]),
+        "first_threshold_recall_at_or_below_0_90": first_threshold_at_or_below_recall(rows),
+    }
+
+
+def plot_threshold_sensitivity(
+    rows: list[dict[str, Any]],
+    operating_threshold: float,
+    output_dir: Path,
+) -> None:
+    """Plot held-out test recall and precision over the sensitivity grid."""
+
+    thresholds = np.asarray([row["threshold"] for row in rows], dtype=float)
+    recalls = np.asarray([row["recall"] for row in rows], dtype=float)
+    precisions = np.asarray([row["precision"] for row in rows], dtype=float)
+    operating_index = int(np.argmin(np.abs(thresholds - operating_threshold)))
+
+    fig, ax = plt.subplots(figsize=(7.5, 4.9))
+    ax.plot(thresholds, recalls, color="tab:blue", linewidth=2, label="Recall / POD")
+    ax.plot(thresholds, precisions, color="tab:orange", linewidth=2, label="Precision")
+    ax.axvline(
+        operating_threshold,
+        color="black",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Validation-selected threshold {operating_threshold:.2f}",
+    )
+    ax.scatter(
+        [operating_threshold, operating_threshold],
+        [recalls[operating_index], precisions[operating_index]],
+        color=["tab:blue", "tab:orange"],
+        zorder=5,
+    )
+    ax.annotate(
+        f"Validation-selected point\nRecall={recalls[operating_index]:.4f}, "
+        f"Precision={precisions[operating_index]:.4f}",
+        xy=(operating_threshold, recalls[operating_index]),
+        xytext=(0.545, 0.825),
+        arrowprops={"arrowstyle": "->", "color": "0.25"},
+        fontsize=9,
+    )
+    ax.set_title("Held-Out Test Threshold Sensitivity")
+    ax.set_xlabel("Decision threshold")
+    ax.set_ylabel("Score")
+    ax.set_xlim(0.30, 0.80)
+    ax.set_ylim(0.0, 1.02)
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc="lower left")
+    save_figure(fig, output_dir / "threshold_sensitivity.png")
+
+
+def write_threshold_sensitivity(
+    path: Path,
+    test_rows: list[dict[str, Any]],
+    validation_rows: list[dict[str, Any]],
+    operating_threshold: float,
+) -> None:
+    """Write the complete test table plus validation comparison to JSON."""
+
+    payload = {
+        "analysis_only": True,
+        "operating_threshold": float(operating_threshold),
+        "operating_threshold_source": "validation_f1_max",
+        "threshold_grid": {"start": 0.30, "stop": 0.80, "step": 0.01},
+        "far_definition": "FP / (TP + FP)",
+        "recall_0_90_crossing_rule": (
+            "first threshold on the 0.01 grid where recall is less than or equal to 0.90"
+        ),
+        "test": {
+            "summary": sensitivity_report_points(test_rows),
+            "rows": test_rows,
+        },
+        "validation": {
+            "summary": sensitivity_report_points(validation_rows),
+            "rows": validation_rows,
+        },
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+        handle.write("\n")
+
 
 def plot_roc_curve(probabilities: np.ndarray, labels: np.ndarray, json_auc: float, output_dir: Path) -> float:
     fpr, tpr, _ = roc_curve(labels, probabilities)
@@ -528,6 +685,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", type=Path, default=Path("models/satellite_resnet50_frozen_cpu_clean_best.pth"))
     parser.add_argument("--dataset-csv", type=Path, default=Path("data/processed/satellite_dataset.csv"))
     parser.add_argument("--output-dir", type=Path, default=Path("results/figures"))
+    parser.add_argument(
+        "--threshold-sensitivity-json",
+        type=Path,
+        default=Path("results/threshold_sensitivity_test.json"),
+    )
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
@@ -565,6 +727,32 @@ def main() -> None:
     recomputed_auc = plot_roc_curve(probabilities, labels, json_auc, args.output_dir)
     plot_probability_histogram(probabilities, labels, threshold, args.output_dir)
 
+    validation_probabilities, validation_labels = collect_probabilities(
+        args.checkpoint,
+        args.dataset_csv,
+        args.batch_size,
+        split="val",
+    )
+    validation_manifest_labels = (
+        test_manifest[test_manifest["split"].astype(str).str.casefold() == "val"]["label"]
+        .to_numpy(dtype=np.int64)
+    )
+    if not np.array_equal(validation_labels, validation_manifest_labels):
+        raise RuntimeError("Inference labels do not align with validation manifest row order")
+
+    test_sensitivity = threshold_sensitivity_rows(probabilities, labels)
+    validation_sensitivity = threshold_sensitivity_rows(
+        validation_probabilities,
+        validation_labels,
+    )
+    plot_threshold_sensitivity(test_sensitivity, threshold, args.output_dir)
+    write_threshold_sensitivity(
+        args.threshold_sensitivity_json,
+        test_sensitivity,
+        validation_sensitivity,
+        threshold,
+    )
+
     print("Wrote figures:")
     for filename in FIGURE_SPECS:
         path = args.output_dir / filename
@@ -574,12 +762,35 @@ def main() -> None:
     print(f"Recomputed test ROC-AUC: {recomputed_auc:.6f}")
     print(f"JSON test ROC-AUC: {json_auc:.6f}")
     positive_summary = summarize_positive_probabilities(probabilities, labels)
+    negative_summary = summarize_negative_probabilities(probabilities, labels)
     print(
         "Positive-class test probabilities: "
         f"median={positive_summary['median']:.6f}, "
         f"IQR=[{positive_summary['q1']:.6f}, {positive_summary['q3']:.6f}], "
         f"fraction_above_0.9={positive_summary['fraction_above_0_9']:.6f}"
     )
+    print(
+        "Negative-class test probabilities: "
+        f"median={negative_summary['median']:.6f}, "
+        f"IQR=[{negative_summary['q1']:.6f}, {negative_summary['q3']:.6f}], "
+        f"fraction_below_0.1={negative_summary['fraction_below_0_1']:.6f}"
+    )
+    for split_name, rows in (
+        ("Test", test_sensitivity),
+        ("Validation", validation_sensitivity),
+    ):
+        points = sensitivity_report_points(rows)
+        print(
+            f"{split_name} threshold sensitivity: "
+            f"recall@0.51={points['recall_at_0_51']:.6f}, "
+            f"F1@0.51={points['f1_at_0_51']:.6f}, "
+            f"recall@0.60={points['recall_at_0_60']:.6f}, "
+            f"recall@0.65={points['recall_at_0_65']:.6f}, "
+            f"recall@0.70={points['recall_at_0_70']:.6f}, "
+            "first threshold with recall<=0.90="
+            f"{points['first_threshold_recall_at_or_below_0_90']}"
+        )
+    print(f"Threshold sensitivity table: {args.threshold_sensitivity_json}")
     print(f"Example selection: {args.output_dir / 'example_input_patches_selection.json'}")
 
 

@@ -43,6 +43,10 @@ results/figures/
 results/*.json
 results/*.png
 !results/satellite_frozen_cpu_clean_metrics.json
+!results/threshold_sensitivity_test.json
+!results/figures/
+results/figures/*
+!results/figures/threshold_sensitivity.png
 report/**
 !report/
 !report/README.md

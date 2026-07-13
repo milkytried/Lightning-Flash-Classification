@@ -116,3 +116,34 @@ def test_positive_probability_summary():
     assert summary["q1"] == pytest.approx(0.35)
     assert summary["q3"] == pytest.approx(0.8375)
     assert summary["fraction_above_0_9"] == pytest.approx(0.25)
+
+
+def test_negative_probability_summary():
+    probabilities = np.array([0.01, 0.05, 0.2, 0.4, 0.8, 0.95])
+    labels = np.array([0, 0, 0, 0, 1, 1])
+
+    summary = plot_results.summarize_negative_probabilities(probabilities, labels)
+
+    assert summary["median"] == pytest.approx(0.125)
+    assert summary["q1"] == pytest.approx(0.04)
+    assert summary["q3"] == pytest.approx(0.25)
+    assert summary["fraction_below_0_1"] == pytest.approx(0.5)
+
+
+def test_threshold_sensitivity_uses_project_metric_definitions():
+    probabilities = np.array([0.10, 0.40, 0.60, 0.90])
+    labels = np.array([0, 1, 0, 1])
+
+    rows = plot_results.threshold_sensitivity_rows(
+        probabilities,
+        labels,
+        thresholds=np.array([0.30, 0.50, 0.70]),
+    )
+
+    assert rows[0]["recall"] == pytest.approx(1.0)
+    assert rows[0]["pod"] == pytest.approx(rows[0]["recall"])
+    assert rows[0]["precision"] == pytest.approx(2 / 3)
+    assert rows[0]["far"] == pytest.approx(1 / 3)
+    assert rows[1]["recall"] == pytest.approx(0.5)
+    assert rows[1]["f1"] == pytest.approx(0.5)
+    assert plot_results.first_threshold_at_or_below_recall(rows) == pytest.approx(0.50)
