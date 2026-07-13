@@ -19,7 +19,7 @@ def dummy_model_and_config():
         tmpdir = Path(tmpdir)
         
         # Create and save a dummy model
-        model = LightningResNet50(num_input_channels=3)
+        model = LightningResNet50(num_input_channels=3, pretrained=False)
         model_path = tmpdir / "dummy_model.pth"
         torch.save(model.state_dict(), model_path)
         

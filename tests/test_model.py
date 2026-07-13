@@ -10,14 +10,14 @@ from src.model_arch import LightningResNet50, FocalLoss
 
 def test_resnet50_initialization():
     """Test model initializes without errors."""
-    model = LightningResNet50(num_input_channels=3)
+    model = LightningResNet50(num_input_channels=3, pretrained=False)
     assert model is not None
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
 
 def test_forward_pass_shape():
     """Test forward pass returns correct shape."""
-    model = LightningResNet50(num_input_channels=3)
+    model = LightningResNet50(num_input_channels=3, pretrained=False)
     x = torch.randn(16, 3, 64, 64)
     y = model(x)
     
@@ -27,7 +27,7 @@ def test_forward_pass_shape():
 
 def test_forward_pass_multi_channel():
     """Test forward pass with non-standard channel count."""
-    model = LightningResNet50(num_input_channels=5)  # IR, WV, VIS, custom1, custom2
+    model = LightningResNet50(num_input_channels=5, pretrained=False)  # IR, WV, VIS, custom1, custom2
     x = torch.randn(8, 5, 64, 64)
     y = model(x)
     
@@ -37,7 +37,7 @@ def test_forward_pass_multi_channel():
 
 def test_forward_pass_single_channel():
     """Test forward pass with single channel (IR only)."""
-    model = LightningResNet50(num_input_channels=1)
+    model = LightningResNet50(num_input_channels=1, pretrained=False)
     x = torch.randn(4, 1, 64, 64)
     y = model(x)
     
@@ -46,7 +46,7 @@ def test_forward_pass_single_channel():
 
 def test_model_gradients():
     """Test that gradients flow through model."""
-    model = LightningResNet50(num_input_channels=3)
+    model = LightningResNet50(num_input_channels=3, pretrained=False)
     x = torch.randn(8, 3, 64, 64, requires_grad=True)
     y = model(x)
     loss = y.mean()
@@ -100,7 +100,7 @@ def test_focal_loss_perfect_prediction():
 
 def test_model_eval_mode():
     """Test model can be switched to eval mode."""
-    model = LightningResNet50(num_input_channels=3)
+    model = LightningResNet50(num_input_channels=3, pretrained=False)
     model.eval()
     
     x = torch.randn(8, 3, 64, 64)

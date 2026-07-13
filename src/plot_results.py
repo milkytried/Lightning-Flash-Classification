@@ -17,7 +17,9 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
+from PIL import Image
 from sklearn.metrics import roc_auc_score, roc_curve
 
 from himawari_data_loader import create_himawari_loaders
@@ -25,6 +27,7 @@ from train_satellite import SatelliteTrainer
 
 
 FIGURE_SPECS = {
+    "example_input_patches.png": "Held-out Himawari-9 patches by true class.",
     "training_curves.png": "Training and validation loss by epoch.",
     "validation_metrics.png": "Validation accuracy and ROC-AUC by epoch.",
     "confusion_matrix.png": "Held-out test confusion matrix at the validation-selected threshold.",
@@ -147,6 +150,39 @@ def plot_confusion_matrix(metrics: dict[str, Any], output_dir: Path) -> None:
     save_figure(fig, output_dir / "confusion_matrix.png")
 
 
+def plot_example_input_patches(dataset_csv: Path, output_dir: Path, samples_per_class: int = 4) -> None:
+    """Plot deterministic held-out examples for Figure 5.1."""
+
+    require_file(dataset_csv, "dataset manifest")
+    manifest = pd.read_csv(dataset_csv)
+    required = {"path", "label", "split"}
+    missing = sorted(required.difference(manifest.columns))
+    if missing:
+        raise ValueError(f"Dataset manifest is missing required columns: {missing}")
+
+    test_rows = manifest[manifest["split"].astype(str).str.casefold() == "test"].copy()
+    class_rows = []
+    for label in (1, 0):
+        rows = test_rows[test_rows["label"].astype(int) == label].head(samples_per_class)
+        if len(rows) < samples_per_class:
+            raise ValueError(
+                f"Need at least {samples_per_class} test patches with label {label}; found {len(rows)}"
+            )
+        class_rows.append(rows)
+
+    fig, axes = plt.subplots(2, samples_per_class, figsize=(2.4 * samples_per_class, 5.0))
+    row_titles = ["Lightning", "No lightning"]
+    for row_index, rows in enumerate(class_rows):
+        for col_index, (_, row) in enumerate(rows.iterrows()):
+            patch_path = require_file(Path(str(row["path"])), "held-out patch")
+            with Image.open(patch_path) as image:
+                axes[row_index, col_index].imshow(image.convert("RGB"))
+            axes[row_index, col_index].axis("off")
+            if col_index == 0:
+                axes[row_index, col_index].set_ylabel(row_titles[row_index], fontsize=11)
+    fig.suptitle("Held-Out Himawari-9 Infrared Patches (B08/B13/B15)")
+    save_figure(fig, output_dir / "example_input_patches.png")
+
 def collect_probabilities(checkpoint_path: Path, dataset_csv: Path, batch_size: int) -> tuple[np.ndarray, np.ndarray]:
     require_file(checkpoint_path, "model checkpoint")
     require_file(dataset_csv, "dataset manifest")
@@ -262,8 +298,8 @@ def plot_probability_histogram(probabilities: np.ndarray, labels: np.ndarray, th
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate report plots for satellite CNN results.")
-    parser.add_argument("--metrics-json", type=Path, default=Path("results/satellite_frozen_cpu_metrics.json"))
-    parser.add_argument("--checkpoint", type=Path, default=Path("models/satellite_resnet50_frozen_cpu_best.pth"))
+    parser.add_argument("--metrics-json", type=Path, default=Path("results/satellite_frozen_cpu_clean_metrics.json"))
+    parser.add_argument("--checkpoint", type=Path, default=Path("models/satellite_resnet50_frozen_cpu_clean_best.pth"))
     parser.add_argument("--dataset-csv", type=Path, default=Path("data/processed/satellite_dataset.csv"))
     parser.add_argument("--output-dir", type=Path, default=Path("results/figures"))
     parser.add_argument("--batch-size", type=int, default=128)
@@ -277,6 +313,7 @@ def main() -> None:
     json_auc = float(test_metrics["roc_auc"])
     threshold = float(metrics.get("selected_threshold", test_metrics.get("threshold", 0.5)))
 
+    plot_example_input_patches(args.dataset_csv, args.output_dir)
     plot_training_curves(metrics, args.output_dir)
     plot_validation_metrics(metrics, args.output_dir)
     plot_confusion_matrix(metrics, args.output_dir)
