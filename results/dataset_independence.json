@@ -1,0 +1,124 @@
+{
+  "method": {
+    "source_frame_column": "frame_id",
+    "date_source_column": "timestamp",
+    "positive_coordinate_columns": [
+      "lat",
+      "lon"
+    ],
+    "spatial_clustering": "DBSCAN within each source frame using haversine distance",
+    "dbscan_eps_km": 20.0,
+    "dbscan_min_samples": 1,
+    "earth_radius_km": 6371.0088,
+    "quartile_method": "NumPy linear quantiles",
+    "interpretation": "Spatial clusters are a coarse within-frame proxy for convective events, not tracked meteorological storm objects across time."
+  },
+  "overall": {
+    "patches": 41168,
+    "positive_patches": 20584,
+    "distinct_source_frames": 1000,
+    "distinct_dates": 264,
+    "patches_per_frame": {
+      "count": 1000,
+      "median": 22.0,
+      "q1": 6.0,
+      "q3": 88.0,
+      "iqr": 82.0,
+      "max": 100,
+      "mean": 41.168
+    },
+    "positive_distinct_frames": 1000,
+    "positives_per_positive_frame": {
+      "count": 1000,
+      "median": 11.0,
+      "q1": 3.0,
+      "q3": 44.0,
+      "iqr": 41.0,
+      "max": 50,
+      "mean": 20.584
+    },
+    "positive_spatial_clusters": 2754
+  },
+  "per_split": {
+    "test": {
+      "patches": 4618,
+      "positive_patches": 2309,
+      "distinct_source_frames": 121,
+      "distinct_dates": 31,
+      "patches_per_frame": {
+        "count": 121,
+        "median": 18.0,
+        "q1": 6.0,
+        "q3": 80.0,
+        "iqr": 74.0,
+        "max": 100,
+        "mean": 38.16528925619835
+      },
+      "positive_distinct_frames": 121,
+      "positives_per_positive_frame": {
+        "count": 121,
+        "median": 9.0,
+        "q1": 3.0,
+        "q3": 40.0,
+        "iqr": 37.0,
+        "max": 50,
+        "mean": 19.082644628099175
+      },
+      "positive_spatial_clusters": 266
+    },
+    "train": {
+      "patches": 33226,
+      "positive_patches": 16613,
+      "distinct_source_frames": 729,
+      "distinct_dates": 189,
+      "patches_per_frame": {
+        "count": 729,
+        "median": 32.0,
+        "q1": 8.0,
+        "q3": 94.0,
+        "iqr": 86.0,
+        "max": 100,
+        "mean": 45.57750342935528
+      },
+      "positive_distinct_frames": 729,
+      "positives_per_positive_frame": {
+        "count": 729,
+        "median": 16.0,
+        "q1": 4.0,
+        "q3": 47.0,
+        "iqr": 43.0,
+        "max": 50,
+        "mean": 22.78875171467764
+      },
+      "positive_spatial_clusters": 2227
+    },
+    "val": {
+      "patches": 3324,
+      "positive_patches": 1662,
+      "distinct_source_frames": 150,
+      "distinct_dates": 44,
+      "patches_per_frame": {
+        "count": 150,
+        "median": 6.0,
+        "q1": 2.0,
+        "q3": 25.0,
+        "iqr": 23.0,
+        "max": 100,
+        "mean": 22.16
+      },
+      "positive_distinct_frames": 150,
+      "positives_per_positive_frame": {
+        "count": 150,
+        "median": 3.0,
+        "q1": 1.0,
+        "q3": 12.5,
+        "iqr": 11.5,
+        "max": 50,
+        "mean": 11.08
+      },
+      "positive_spatial_clusters": 261
+    }
+  },
+  "viva_headline": "The 20,584 positive patches derive from 1,000 distinct source frames across 264 dates, representing approximately 2,754 spatially distinct within-frame convective clusters at a 20 km DBSCAN scale.",
+  "dataset_manifest": "data\\processed\\satellite_dataset.csv"
+}

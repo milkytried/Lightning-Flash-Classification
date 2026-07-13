@@ -44,19 +44,21 @@ results/*.json
 results/*.png
 !results/satellite_frozen_cpu_clean_metrics.json
 !results/threshold_sensitivity_test.json
+!results/dataset_independence.json
 !results/figures/
 results/figures/*
+!results/figures/example_input_patches.png
+!results/figures/training_curves.png
+!results/figures/validation_metrics.png
+!results/figures/confusion_matrix.png
+!results/figures/roc_curve.png
+!results/figures/baseline_comparison.png
+!results/figures/meteorological_metrics.png
+!results/figures/probability_histogram.png
 !results/figures/threshold_sensitivity.png
 report/**
 !report/
 !report/README.md
-!report/audit/
-!report/audit/*.md
-!report/final_summary/
-!report/final_summary/*.md
-!report/qa_prep/
-!report/qa_prep/*.md
-!report/figures/README.md
 
 # Notebooks
 .ipynb_checkpoints/

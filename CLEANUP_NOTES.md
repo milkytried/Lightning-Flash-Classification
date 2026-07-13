@@ -70,3 +70,13 @@ No threshold, model, or reported evaluation metric was changed. The operating th
 At threshold 0.51, test recall/POD is 0.956691 and F1 is 0.913565, exactly reproducing the reported 0.9567 and 0.9136. Test recall falls to 0.854049 at 0.60, 0.743612 at 0.65, and 0.599394 at 0.70; on the requested 0.01 grid, 0.57 is the first threshold where test recall is at or below 0.90. Validation recall/F1 at 0.51 are 0.939832/0.885237; validation recall is 0.795427 at 0.60, 0.697353 at 0.65, and 0.569194 at 0.70, with its first recall-at-or-below-0.90 threshold at 0.55.
 
 The 0.51 operating point is not a local F1 knife-edge: it is the maximum-F1 point on the 0.01 grid for both validation and test, and nearby validation F1 is 0.884464 at 0.50, 0.885237 at 0.51, 0.885208 at 0.52, and 0.884915 at 0.53. However, recall is threshold-sensitive once the cutoff is raised because both class distributions occupy compressed, overlapping probability ranges. This sensitivity analysis is descriptive and does not retune on the test set.
+
+## Dataset independence and effective sampling units
+
+The manifest contains 41,168 patches from 1,000 distinct Himawari-9 source frames across 264 UTC dates. By split, train contains 729 frames across 189 dates, validation 150 frames across 44 dates, and test 121 frames across 31 dates. All split totals reconcile to the overall counts, and no source frame crosses a split.
+
+Across the full manifest, patches per frame have median 22, IQR 6-88, and maximum 100. The 20,584 positive patches come from all 1,000 source frames; positives per positive frame have median 11, IQR 3-44, and maximum 50. Per split, positives per frame are: train median 16, IQR 4-47, maximum 50; validation median 3, IQR 1-12.5, maximum 50; and test median 9, IQR 3-40, maximum 50.
+
+Using haversine DBSCAN separately within each frame (20 km radius, min_samples=1) gives 2,754 spatial clusters overall: 2,227 train, 261 validation, and 266 test. This is a coarse proxy for spatially distinct convective events within each 10-minute frame, not a formal autocorrelation-adjusted effective sample size and not storm tracking across consecutive frames. The reproducible calculation and all split-level distributions are recorded in results/dataset_independence.json.
+
+**Viva headline:** "The 20,584 positive patches derive from 1,000 distinct source frames across 264 dates, representing approximately 2,754 spatially distinct within-frame convective clusters at a 20 km DBSCAN scale."
