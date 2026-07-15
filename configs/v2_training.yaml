@@ -1,0 +1,103 @@
+version: v2-phase3-preregistered-neural-v1
+description: >
+  Preregistered Version 2 Phase 3 neural-network training plan. Version 2
+  dataset, labels, splits, and manifests are frozen before training. Controlled
+  test and natural-prevalence labels/predictions must not be inspected until
+  all six training runs, validation choices, checkpoint hashes, and the test
+  unlock record are complete.
+
+inputs:
+  v2_full_config: configs/v2_full.yaml
+  controlled_manifest: data/processed/v2/full/manifest.csv
+  frame_ledger: data/processed/v2/full/frame_ledger.csv
+  natural_prevalence_manifest: data/processed/v2/natural_prevalence_test/manifest.csv
+
+training:
+  seeds: [42, 1337, 2026]
+  device: cpu
+  batch_size: 32
+  eval_batch_size: 128
+  max_epochs: 50
+  early_stopping_patience: 7
+  optimizer: adamw
+  learning_rate: 0.001
+  resnet_head_learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler: reduce_lr_on_plateau
+  scheduler_patience: 3
+  scheduler_factor: 0.5
+  primary_selection_metric: validation_pr_auc
+  selection_tiebreaker: validation_loss
+  loss_candidates:
+    - bce_unweighted
+    - bce_pos_weight_train_split
+  augmentation_candidates:
+    - none
+    - right_angle_flips_rotations
+  threshold_objective: validation_f1_max
+  calibration: temperature_scaling_on_validation_logits
+  ensemble_preregistered: true
+  ensemble_rule: average_uncalibrated_seed_probabilities_with_validation_selected_thresholds_reported_per_model
+
+preprocessing:
+  channel_order: [B08, B13, B15]
+  patch_size: 64
+  pixel_scaling: uint8_divide_by_255
+  small_cnn_normalization:
+    mean: [0.5, 0.5, 0.5]
+    std: [0.5, 0.5, 0.5]
+  resnet50_normalization:
+    source: torchvision.models.ResNet50_Weights.IMAGENET1K_V2.transforms
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+  train_augmentation:
+    right_angle_flips_rotations:
+      horizontal_flip: true
+      vertical_flip: true
+      rotate_90_degrees: true
+    disallowed:
+      - colour_jitter
+      - channel_swapping
+      - strong_brightness_modification
+      - arbitrary_colour_transforms
+  validation_and_test_augmentation: none
+  unreadable_image_policy: raise_error
+
+models:
+  small_cnn:
+    input_channels: 3
+    conv_blocks: 3
+    normalization: batch_norm
+    global_pooling: adaptive_avg_pool_2d
+    head_hidden_units: 64
+    dropout: 0.25
+    output: raw_logit
+  frozen_resnet50:
+    torchvision_weight_enum: ResNet50_Weights.IMAGENET1K_V2
+    freeze_complete_convolutional_backbone: true
+    trainable_layers: replacement_fc_head_only
+    output: raw_logit
+
+outputs:
+  root: results/v2/phase3
+  checkpoints: models/v2/phase3
+  logs: logs/v2/phase3
+  resolved_configs: results/v2/phase3/resolved_configs
+  training_history: results/v2/phase3/training_history
+  validation_predictions: results/v2/phase3/validation_predictions
+  controlled_predictions: results/v2/phase3/controlled_test_predictions
+  natural_predictions: results/v2/phase3/natural_prevalence_predictions
+  calibration_records: results/v2/phase3/calibration
+  threshold_records: results/v2/phase3/thresholds
+  resource_reports: results/v2/phase3/resource_reports
+  figures: results/v2/phase3/figures
+
+reporting:
+  task_description: >
+    Classification of MMD-recorded cloud-to-ground lightning associations from
+    Himawari-9 image patches within a conservative empirical Peninsular Malaysia
+    study region.
+  no_operational_claims: true
+  metric_names:
+    far: false discovery ratio, FP / (TP + FP)
+    fpr: false positive rate, FP / (FP + TN)
