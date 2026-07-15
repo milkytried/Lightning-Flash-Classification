@@ -23,6 +23,8 @@ def test_full_configuration_hash_is_frozen_and_valid():
 
 
 def test_full_ledger_is_frozen_and_split_independent():
+    if not LEDGER.exists():
+        pytest.skip("full Phase 2 frame ledger is generated locally and not committed")
     ledger = pd.read_csv(LEDGER)
     assert len(ledger) == 1200
     assert ledger.frame_timestamp_utc.is_unique
@@ -46,6 +48,8 @@ def test_full_manifest_has_no_duplicate_crop_within_or_across_splits():
 
 
 def test_full_required_auxiliary_ledgers_exist_with_protocol_columns():
+    if not LEDGER.exists():
+        pytest.skip("full Phase 2 generated ledgers are not present in CI")
     required = {
         Path("data/processed/v2/full/noaa_object_inventory.csv"): {
             "frame_timestamp_utc",
