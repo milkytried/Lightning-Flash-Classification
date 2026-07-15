@@ -134,6 +134,12 @@ def load_completed_run_if_valid(config: dict[str, Any], name: str, checkpoint_pa
     if not status_path.exists():
         return None
     status = json.loads(status_path.read_text(encoding="utf-8"))
+    if status.get("status") == "running":
+        resume_path = Path(config["outputs"]["root"]) / "resume_events.jsonl"
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        with resume_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"run_name": name, "previous_status": "running", "resume_at_utc": now_iso(), "action": "restart_same_seed_config_after_external_interruption"}) + "\n")
+        return None
     if status.get("status") != "completed":
         raise SystemExit(f"Previous Phase 3 run {name} is marked {status.get('status')}; review before resuming.")
     missing = [str(path) for path in required_run_artifacts(config, name, checkpoint_path) if not path.exists()]
