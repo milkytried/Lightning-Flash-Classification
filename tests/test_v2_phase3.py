@@ -50,3 +50,32 @@ def test_v2_phase3_models_emit_logits_not_probabilities():
         logits = model(torch.randn(4, 3, 64, 64))
     assert logits.shape == (4,)
     assert torch.is_floating_point(logits)
+
+
+def test_v2_phase3_selects_one_candidate_per_architecture():
+    from src.v2_phase3_train import select_primary_runs
+
+    seeds = [42, 1337, 2026]
+    runs = []
+    for architecture in ["small_cnn", "frozen_resnet50"]:
+        for seed in seeds:
+            for loss_name, aug, pr_auc, val_loss in [
+                ("bce_unweighted", "none", 0.60, 0.9),
+                ("bce_pos_weight_train_split", "none", 0.70, 0.8),
+            ]:
+                runs.append({
+                    "run_name": f"{architecture}_{seed}_{loss_name}_{aug}",
+                    "architecture": architecture,
+                    "seed": seed,
+                    "loss_name": loss_name,
+                    "augmentation": aug,
+                    "validation_pr_auc": pr_auc,
+                    "validation_loss": val_loss,
+                    "validation_roc_auc": pr_auc,
+                })
+
+    selection = select_primary_runs(runs, seeds)
+    final_runs = selection["final_runs"]
+    assert len(final_runs) == 6
+    assert {item["loss_name"] for item in final_runs} == {"bce_pos_weight_train_split"}
+    assert {item["architecture"] for item in final_runs} == {"small_cnn", "frozen_resnet50"}

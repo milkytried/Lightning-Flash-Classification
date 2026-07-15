@@ -434,7 +434,9 @@ def save_checkpoint(
 ) -> str:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"model_state_dict": model.state_dict(), **payload}, path)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    torch.save({"model_state_dict": model.state_dict(), **payload}, temp_path)
+    temp_path.replace(path)
     return sha256_file(path)
 
 
