@@ -1,0 +1,125 @@
+version: "2.1-phase1b"
+description: >-
+  Minimum Version 2 design using a conservative empirical Peninsular Malaysia
+  study mask. This is not an official MMD operational coverage polygon.
+
+inputs:
+  mmd_root: data/raw/himawari8_pngs
+  himawari_cache: data/raw/himawari_hsd
+
+study_mask:
+  version: "empirical-peninsular-v1"
+  kind: conservative_empirical_peninsular_malaysia_rectangle
+  official_mmd_coverage_polygon: false
+  latitude_min: 1.2
+  latitude_max: 6.8
+  longitude_min: 99.7
+  longitude_max: 104.4
+
+satellite:
+  bands: [B08, B13, B15]
+  segments: [5, 6]
+  degrees_per_pixel: 0.02
+  patch_size: 64
+
+labels:
+  label_rule_version: phase1b-frozen-v1
+  interval_notation: 'positive [t,t+10m); negative exclusion [t-20m,t+30m); start inclusive, end exclusive'
+  positive_window:
+    start_minutes: 0
+    end_minutes: 10
+    end_exclusive: true
+  negative_window:
+    start_minutes: -20
+    end_minutes: 30
+    end_exclusive: true
+  safety_margin_km: 10.0
+  contamination_windows_minutes: [0, 10, 20, 30]
+  wording: no MMD-recorded ground strike under the configured rule
+
+frames:
+  minimum_full_design: 1000
+  active_target: 500
+  zero_recorded_target: 500
+  pilot_total: 100
+  pilot_active: 50
+  pilot_zero_recorded: 50
+  pilot_split_per_category: {train: 35, val: 8, test: 7}
+  max_positive_patches_per_active_frame: 20
+  max_hard_negative_patches_per_active_frame: 20
+  zero_recorded_patches_per_frame: 8
+  random_seed: 42
+
+storm_clustering:
+  method: dbscan_on_ten_minute_bin_centroids
+  spatial_scale_km: 75.0
+  temporal_scale_minutes: 60.0
+  eps: 1.0
+  min_samples: 1
+  official_storm_identifiers: false
+
+splits:
+  strategy: preliminary_storm_group_disjoint_chronological
+  train_end_utc: "2024-12-31T23:59:59Z"
+  validation_end_utc: "2025-02-28T23:59:59Z"
+  test_preference: later_dates
+  missing_dates: unknown_excluded
+
+outputs:
+  root: data/processed/v2
+  inventory_csv: data/processed/v2/mmd_inventory.csv
+  bins_csv: data/processed/v2/mmd_ten_minute_bins.csv
+  inventory_summary_json: data/processed/v2/mmd_inventory_summary.json
+  frame_ledger_csv: data/processed/v2/frame_ledger_candidates.csv
+  frame_ledger_json: data/processed/v2/frame_ledger_candidates.json
+  pilot_root: data/processed/v2/pilot
+  pilot_manifest: data/processed/v2/pilot/manifest.csv
+  pilot_frame_ledger: data/processed/v2/pilot/frame_ledger.csv
+
+
+
+
+phase1b:
+  configuration_hash_scope: canonical YAML excluding phase1b.configuration_hash
+  configuration_hash: 7e0b9b390e5e3bedb3696ab524530664776f779a3890baf43424d48cb2a4f3b1
+  decision_rules:
+    minimum_validation_positives: 100
+    minimum_test_positives: 100
+    primary_contamination_must_equal: 0
+    geographic_roc_auc_acceptable_below: 0.70
+    geographic_roc_auc_investigate_upper: 0.75
+    geographic_within_best_image_auc_stop_delta: 0.05
+  frames:
+    pilot_total: 210
+    active_total: 150
+    zero_recorded_total: 60
+    per_split:
+      train: {active: 90, zero_recorded: 36}
+      val: {active: 30, zero_recorded: 12}
+      test: {active: 30, zero_recorded: 12}
+    minimum_active_dates_validation_test: 10
+    minimum_storm_groups_validation_test: 15
+    minimum_active_frames_validation_test: 20
+    minimum_spaced_positives_per_selected_active_frame: 4
+  sampling:
+    positive_minimum_centre_spacing_km: 30.0
+    positive_cap_per_frame: 10
+    negative_cap_per_active_frame: 10
+    zero_recorded_patches_per_frame: 5
+    geographic_grid_degrees: 0.5
+    latitude_band_degrees: 0.5
+    longitude_band_degrees: 0.5
+    coastline_matching: unavailable_no_reliable_local_mask
+    cache_policy: science_first_cache_only_tiebreaker
+    local_time_blocks:
+      - "00:00-05:59"
+      - "06:00-11:59"
+      - "12:00-17:59"
+      - "18:00-23:59"
+  outputs:
+    root: data/processed/v2/pilot_v2
+    frame_ledger: data/processed/v2/pilot_v2/frame_ledger.csv
+    frame_ledger_json: data/processed/v2/pilot_v2/frame_ledger.json
+    manifest: data/processed/v2/pilot_v2/manifest.csv
+    patch_root: data/processed/v2/pilot_v2/patches
+    results_root: results/v2/phase1b
