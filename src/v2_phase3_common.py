@@ -434,21 +434,19 @@ def save_checkpoint(
 ) -> str:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(path.suffix + f".{time.time_ns()}.tmp")
-    torch.save({"model_state_dict": model.state_dict(), **payload}, temp_path)
     last_error: OSError | None = None
     for _ in range(5):
+        temp_path = path.with_suffix(path.suffix + f".{time.time_ns()}.tmp")
         try:
+            torch.save({"model_state_dict": model.state_dict(), **payload}, temp_path)
             temp_path.replace(path)
             return sha256_file(path)
         except OSError as exc:
             last_error = exc
-            time.sleep(0.25)
-    try:
-        temp_path.unlink(missing_ok=True)
-    finally:
-        if last_error is not None:
-            raise last_error
+            temp_path.unlink(missing_ok=True)
+            time.sleep(0.5)
+    if last_error is not None:
+        raise last_error
     return sha256_file(path)
 
 

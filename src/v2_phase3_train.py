@@ -16,6 +16,7 @@ import json
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -351,7 +352,7 @@ def train_stage(args: argparse.Namespace) -> None:
                                     early_stopping_reason = "patience_exhausted"
                                     break
                     except Exception as exc:
-                        mark_run_status(config, name, "failed", {"error": repr(exc), "source_commit": source_commit, **manifest_hashes})
+                        mark_run_status(config, name, "failed", {"error": repr(exc), "traceback": traceback.format_exc(), "source_commit": source_commit, **manifest_hashes})
                         raise
                     elapsed = time.time() - start
 
