@@ -1,0 +1,68 @@
+{
+  "checks": {
+    "all_phase2_tests_passed": true,
+    "clustered_intervals_no_severe_instability": true,
+    "cross_split_overlaps_zero": true,
+    "deterministic_manifest_regeneration_passed": true,
+    "geography_at_least_0_05_below_best_image": true,
+    "invalid_patch_counts_zero": true,
+    "latlon_rf_roc_auc_below_0_75": true,
+    "natural_prevalence_set_exists": true,
+    "primary_contamination_zero": true,
+    "validation_and_test_support_passed": true
+  },
+  "controlled_manifest_rows": 14561,
+  "created_at_utc": "2026-07-15T15:33:05Z",
+  "environment": {
+    "cuda_available": false,
+    "cuda_build": null,
+    "device_count": 0,
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.14.4",
+    "torch": "2.12.0+cpu",
+    "torchvision": "0.27.0+cpu"
+  },
+  "hashes": {
+    "configuration_hash": "eebe246103c5543f1c2b4618d76f91fe678edf14d966b19842c1e02b5928b081",
+    "controlled_manifest_hash": "a0beb139f3b654028938952af39c29755fef7259547b01ba9dd58898fbfb585a",
+    "frame_ledger_hash": "3d7545d868cace4aea0750d0f235a32e3375e3fa00cfa6eaf9f066b761781a1a",
+    "mmd_inventory_hash": "b8c8154dcc41bc6c196a24b80ea7a1def999d79a8d1929bffa24d90d0dd2a77c",
+    "natural_prevalence_manifest_hash": "fc592b8c679ed0f81a242c0d37aeabf254090648f9fef07df49f343500dca6a2",
+    "source_code_commit": "c86df59b081d78498c968aec3cf74c0d4aaf0254",
+    "v2_full_config_sha256": "e3ce2188b8a21098cd424013d7e8f5e87e03b42f7d91b48331b400f7b2361333"
+  },
+  "natural_prevalence_rows": 2475,
+  "passed": true,
+  "phase2_decision": "Proceed to neural-network training",
+  "phase2_key_values": {
+    "best_image_test_roc_auc": 0.945951786878563,
+    "geographic_auc_gap_image_minus_geo": 0.31964231887214123,
+    "geographic_rf_test_roc_auc": 0.6263094680064217,
+    "overlaps": {
+      "crop": 0,
+      "date": 0,
+      "frame_id": 0,
+      "path": 0,
+      "sha256": 0,
+      "source_file": 0,
+      "storm_id": 0,
+      "within_split_duplicate_crop": 0
+    },
+    "patch_audit": {
+      "black": 0,
+      "constant": 0,
+      "corrupt": 0,
+      "duplicate_crop": 0,
+      "duplicate_file_hash": 0,
+      "hash_mismatch": 0,
+      "incorrect_label_metadata": 0,
+      "incorrect_split_path": 0,
+      "manifest_file_mismatch": 0,
+      "missing": 0,
+      "nonfinite": 0,
+      "wrong_channels": 0,
+      "wrong_dimensions": 0
+    },
+    "primary_contamination": 0
+  }
+}
