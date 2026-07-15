@@ -1,0 +1,50 @@
+{
+  "phase": "V2 Phase 2 full dataset",
+  "configuration_hash": "eebe246103c5543f1c2b4618d76f91fe678edf14d966b19842c1e02b5928b081",
+  "ledger_content_hash": "78c82b492875ae38a1841b2272d5d376ca3209e9c03b84ed91b3ceac0aedecfd",
+  "ledger_file_sha256": "3d7545d868cace4aea0750d0f235a32e3375e3fa00cfa6eaf9f066b761781a1a",
+  "frames": 1200,
+  "split_summary": {
+    "test": {
+      "frames": 240,
+      "active_frames": 156,
+      "zero_recorded_frames": 84,
+      "active_dates": 30,
+      "storm_groups": 118,
+      "planned_positive_capacity": 1259,
+      "cached_frames": 21,
+      "download_frames": 219
+    },
+    "train": {
+      "frames": 720,
+      "active_frames": 468,
+      "zero_recorded_frames": 252,
+      "active_dates": 170,
+      "storm_groups": 387,
+      "planned_positive_capacity": 5100,
+      "cached_frames": 135,
+      "download_frames": 585
+    },
+    "val": {
+      "frames": 240,
+      "active_frames": 156,
+      "zero_recorded_frames": 84,
+      "active_dates": 45,
+      "storm_groups": 141,
+      "planned_positive_capacity": 1070,
+      "cached_frames": 40,
+      "download_frames": 200
+    }
+  },
+  "category_counts": {
+    "active": 780,
+    "zero_recorded": 420
+  },
+  "cache_checked_after_selection": true,
+  "download_frames": 1004,
+  "blockers": [],
+  "positive_spacing_km": 30.0,
+  "positive_cap_per_frame": 20,
+  "study_mask_statement": "Minimum Version 2 design using a conservative empirical Peninsular Malaysia study mask. This is not an official MMD operational coverage polygon.",
+  "storm_ids_official": false
+}

@@ -1,0 +1,474 @@
+{
+  "manifest_sha256": "a0beb139f3b654028938952af39c29755fef7259547b01ba9dd58898fbfb585a",
+  "ledger_sha256": "3d7545d868cace4aea0750d0f235a32e3375e3fa00cfa6eaf9f066b761781a1a",
+  "configuration_hash": "eebe246103c5543f1c2b4618d76f91fe678edf14d966b19842c1e02b5928b081",
+  "build_metrics": {
+    "phase": "V2 Phase 2 full dataset",
+    "frames_planned": 1200,
+    "frames_built": 1163,
+    "unavailable_frames": 11,
+    "patches": 14561,
+    "class_by_split": {
+      "test|0": 1987,
+      "test|1": 758,
+      "train|0": 6035,
+      "train|1": 3169,
+      "val|0": 1983,
+      "val|1": 629
+    },
+    "positive_frames_by_split": {
+      "test": 146,
+      "train": 458,
+      "val": 143
+    },
+    "elapsed_seconds": 19809.621951499998,
+    "downloaded_files": 456,
+    "downloaded_bytes": 1138098718,
+    "peak_working_set_bytes": 541028352,
+    "disk_patch_bytes": 73628982,
+    "manifest_sha256": "a0beb139f3b654028938952af39c29755fef7259547b01ba9dd58898fbfb585a",
+    "ledger_sha256": "3d7545d868cace4aea0750d0f235a32e3375e3fa00cfa6eaf9f066b761781a1a",
+    "configuration_hash": "eebe246103c5543f1c2b4618d76f91fe678edf14d966b19842c1e02b5928b081",
+    "positive_removal_totals": {
+      "candidate": 131645,
+      "deduplicated": 402,
+      "spacing_or_cap_removed": 123814,
+      "retained": 7429
+    },
+    "completed_ledger_frames": 1189,
+    "zero_sample_completed_frames": 26,
+    "download_accounting": {
+      "prefetch_files": 5106,
+      "prefetch_bytes": 12719824573,
+      "direct_builder_files": 456,
+      "direct_builder_bytes": 1138098718,
+      "total_recorded_bytes": 13857923291,
+      "prefetch_failures": 10,
+      "authoritative_failed_frames": 11,
+      "cache_policy": "science-first selection frozen before cache check; prefetch occurred only after ledger freeze"
+    },
+    "total_disk_bytes_controlled_and_natural": 85679719
+  },
+  "clusters": {
+    "test": {
+      "patches": 2745,
+      "positive": 758,
+      "negative": 1987,
+      "dates": 32,
+      "frames": 229,
+      "positive_frames": 146,
+      "storms": 191,
+      "active_dates": 30,
+      "positive_per_frame_median": 5.0,
+      "positive_per_frame_max": 18,
+      "largest_frame_fraction": 0.008014571948998178,
+      "largest_date_fraction": 0.24408014571949,
+      "largest_storm_fraction": 0.06156648451730419
+    },
+    "train": {
+      "patches": 9204,
+      "positive": 3169,
+      "negative": 6035,
+      "dates": 223,
+      "frames": 708,
+      "positive_frames": 458,
+      "storms": 628,
+      "active_dates": 167,
+      "positive_per_frame_median": 7.0,
+      "positive_per_frame_max": 18,
+      "largest_frame_fraction": 0.0023902651021295088,
+      "largest_date_fraction": 0.030638852672750978,
+      "largest_storm_fraction": 0.015319426336375489
+    },
+    "val": {
+      "patches": 2612,
+      "positive": 629,
+      "negative": 1983,
+      "dates": 59,
+      "frames": 226,
+      "positive_frames": 143,
+      "storms": 213,
+      "active_dates": 44,
+      "positive_per_frame_median": 4.0,
+      "positive_per_frame_max": 14,
+      "largest_frame_fraction": 0.007656967840735069,
+      "largest_date_fraction": 0.03828483920367534,
+      "largest_storm_fraction": 0.027182235834609495
+    }
+  },
+  "contamination": {
+    "same_frame": 0,
+    "minus10_plus20": 0,
+    "primary_minus20_plus30": 0,
+    "minus30_plus40": 926
+  },
+  "overlaps": {
+    "date": 0,
+    "frame_id": 0,
+    "storm_id": 0,
+    "path": 0,
+    "sha256": 0,
+    "source_file": 0,
+    "crop": 0,
+    "within_split_duplicate_crop": 0
+  },
+  "patch_audit": {
+    "missing": 0,
+    "corrupt": 0,
+    "wrong_dimensions": 0,
+    "wrong_channels": 0,
+    "constant": 0,
+    "black": 0,
+    "nonfinite": 0,
+    "hash_mismatch": 0,
+    "duplicate_file_hash": 0,
+    "duplicate_crop": 0,
+    "manifest_file_mismatch": 0,
+    "incorrect_split_path": 0,
+    "incorrect_label_metadata": 0
+  },
+  "distributions_phase2": {
+    "centre_lat": {
+      "positive_mean": 3.852467815613307,
+      "negative_mean": 3.7379414460082954,
+      "standardized_mean_difference": 0.09188818089445194,
+      "jensen_shannon_divergence": 0.01247708263722885,
+      "population_stability_index": 0.10131809276362191,
+      "ks_statistic": 0.10124349589910928,
+      "ks_pvalue": 2.200966994794389e-28
+    },
+    "centre_lon": {
+      "positive_mean": 101.78206991542316,
+      "negative_mean": 101.71162143139313,
+      "standardized_mean_difference": 0.06764683268016511,
+      "jensen_shannon_divergence": 0.014135818618800283,
+      "population_stability_index": 0.1141006595021106,
+      "ks_statistic": 0.11281598006966664,
+      "ks_pvalue": 3.717743429854826e-35
+    },
+    "local_hour": {
+      "positive_mean": 12.971905179982441,
+      "negative_mean": 11.695552223888056,
+      "standardized_mean_difference": 0.18912587444662454,
+      "jensen_shannon_divergence": 0.089035678488975,
+      "population_stability_index": 0.7960976277229167,
+      "ks_statistic": 0.2746481456374535,
+      "ks_pvalue": 3.7716147238467784e-209
+    },
+    "month": {
+      "positive_mean": 4.708516242317823,
+      "negative_mean": 4.071064467766117,
+      "standardized_mean_difference": 0.22842231956386805,
+      "jensen_shannon_divergence": 0.01558168019558368,
+      "population_stability_index": 0.12767726556980188,
+      "ks_statistic": 0.143347619429969,
+      "ks_pvalue": 1.3815306995311907e-56
+    },
+    "distance_to_study_mask_boundary_km": {
+      "positive_mean": 140.71244890051418,
+      "negative_mean": 124.69412528019497,
+      "standardized_mean_difference": 0.33021415475597216,
+      "jensen_shannon_divergence": 0.022105376960026544,
+      "population_stability_index": 0.17908857242139278,
+      "ks_statistic": 0.19652329234855792,
+      "ks_pvalue": 2.145104030736567e-106
+    },
+    "geographic_grid_2d": {
+      "jensen_shannon_divergence": 0.033393464875141735,
+      "occupied_cells_positive": 71,
+      "occupied_cells_negative": 72
+    }
+  },
+  "distributions_phase1b": {
+    "centre_lat": {
+      "positive_mean": 3.7641864424189104,
+      "negative_mean": 3.7577380447952002,
+      "standardized_mean_difference": 0.005198538019693041,
+      "jensen_shannon_divergence": 0.00869819853928874,
+      "population_stability_index": 0.06999362038167857,
+      "ks_statistic": 0.0665349749994477,
+      "ks_pvalue": 0.07799477537279229
+    },
+    "centre_lon": {
+      "positive_mean": 101.70553450605235,
+      "negative_mean": 101.8392546133142,
+      "standardized_mean_difference": -0.1369644745932988,
+      "jensen_shannon_divergence": 0.015350177413324617,
+      "population_stability_index": 0.1247464739592188,
+      "ks_statistic": 0.09715420811947245,
+      "ks_pvalue": 0.0020465421717875596
+    },
+    "local_hour": {
+      "positive_mean": 13.31004366812227,
+      "negative_mean": 11.696458684654301,
+      "standardized_mean_difference": 0.25005620837657067,
+      "jensen_shannon_divergence": 0.048604127826143165,
+      "population_stability_index": 0.40556859435339526,
+      "ks_statistic": 0.24076746908989152,
+      "ks_pvalue": 8.250536853611056e-19
+    },
+    "month": {
+      "positive_mean": 4.426855895196507,
+      "negative_mean": 3.912310286677909,
+      "standardized_mean_difference": 0.18513579452692444,
+      "jensen_shannon_divergence": 0.008670745586218024,
+      "population_stability_index": 0.0697707532025359,
+      "ks_statistic": 0.10825349602715818,
+      "ks_pvalue": 0.00039089172707659065
+    },
+    "distance_to_study_mask_boundary_km": {
+      "positive_mean": 141.95447414041087,
+      "negative_mean": 133.60399260724753,
+      "standardized_mean_difference": 0.17187695789708218,
+      "jensen_shannon_divergence": 0.011824982969386142,
+      "population_stability_index": 0.0954243253053101,
+      "ks_statistic": 0.14347518722799474,
+      "ks_pvalue": 6.212614434117977e-07
+    },
+    "geographic_grid_2d": {
+      "jensen_shannon_divergence": 0.03671970525674328,
+      "occupied_cells_positive": 70,
+      "occupied_cells_negative": 70
+    }
+  },
+  "distributions_by_split": {
+    "test": {
+      "centre_lat": {
+        "positive_mean": 3.7861690554266554,
+        "negative_mean": 3.5928545450363436,
+        "standardized_mean_difference": 0.15436543190341837,
+        "jensen_shannon_divergence": 0.02196187386888634,
+        "population_stability_index": 0.17936804306711668,
+        "ks_statistic": 0.1502185047133545,
+        "ks_pvalue": 2.8453616631466364e-11
+      },
+      "centre_lon": {
+        "positive_mean": 101.69491758321395,
+        "negative_mean": 101.58461303741585,
+        "standardized_mean_difference": 0.11528200359213314,
+        "jensen_shannon_divergence": 0.02107012609520479,
+        "population_stability_index": 0.17154786044245068,
+        "ks_statistic": 0.14758462990971657,
+        "ks_pvalue": 6.787315316007872e-11
+      },
+      "local_hour": {
+        "positive_mean": 14.907651715039577,
+        "negative_mean": 12.058379466532461,
+        "standardized_mean_difference": 0.46777067511393694,
+        "jensen_shannon_divergence": 0.11640300295707315,
+        "population_stability_index": 1.0961977847276285,
+        "ks_statistic": 0.4201617904240359,
+        "ks_pvalue": 1.5532844997153323e-87
+      },
+      "month": {
+        "positive_mean": 3.3153034300791555,
+        "negative_mean": 3.2169099144438853,
+        "standardized_mean_difference": 0.2239347591989709,
+        "jensen_shannon_divergence": 0.006224116046996989,
+        "population_stability_index": 0.050015917799780506,
+        "ks_statistic": 0.09839351563527042,
+        "ks_pvalue": 4.4287776341229514e-05
+      },
+      "distance_to_study_mask_boundary_km": {
+        "positive_mean": 150.33050719056092,
+        "negative_mean": 127.78071035858162,
+        "standardized_mean_difference": 0.4441662113633644,
+        "jensen_shannon_divergence": 0.03383172130115426,
+        "population_stability_index": 0.2752606205323206,
+        "ks_statistic": 0.2467330524398033,
+        "ks_pvalue": 7.771654022962768e-30
+      },
+      "geographic_grid_2d": {
+        "jensen_shannon_divergence": 0.049782843469992046,
+        "occupied_cells_positive": 58,
+        "occupied_cells_negative": 66
+      }
+    },
+    "train": {
+      "centre_lat": {
+        "positive_mean": 3.9207334510156806,
+        "negative_mean": 3.8643511647043227,
+        "standardized_mean_difference": 0.04476261197292581,
+        "jensen_shannon_divergence": 0.010511112389022782,
+        "population_stability_index": 0.08506413145134123,
+        "ks_statistic": 0.08379451621092172,
+        "ks_pvalue": 3.8317053379707144e-13
+      },
+      "centre_lon": {
+        "positive_mean": 101.90055829111655,
+        "negative_mean": 101.88192794558144,
+        "standardized_mean_difference": 0.017321150848629955,
+        "jensen_shannon_divergence": 0.012927459751956461,
+        "population_stability_index": 0.10423918796609993,
+        "ks_statistic": 0.08817858798326686,
+        "ks_pvalue": 1.6508963761585116e-14
+      },
+      "local_hour": {
+        "positive_mean": 12.623856106027137,
+        "negative_mean": 11.461474730737365,
+        "standardized_mean_difference": 0.16861584712785826,
+        "jensen_shannon_divergence": 0.1050950649810865,
+        "population_stability_index": 0.9304819309731786,
+        "ks_statistic": 0.26060053077360085,
+        "ks_pvalue": 1.4894423685902136e-124
+      },
+      "month": {
+        "positive_mean": 5.66550962448722,
+        "negative_mean": 5.192377796188898,
+        "standardized_mean_difference": 0.16294012392271687,
+        "jensen_shannon_divergence": 0.018128830526546364,
+        "population_stability_index": 0.1495221348339258,
+        "ks_statistic": 0.11501572686728281,
+        "ks_pvalue": 2.1430320486530938e-24
+      },
+      "distance_to_study_mask_boundary_km": {
+        "positive_mean": 139.1299568171455,
+        "negative_mean": 124.26621870411951,
+        "standardized_mean_difference": 0.3090067577340704,
+        "jensen_shannon_divergence": 0.021451413325422584,
+        "population_stability_index": 0.17387377233980383,
+        "ks_statistic": 0.18820298024853965,
+        "ks_pvalue": 8.22286676297743e-65
+      },
+      "geographic_grid_2d": {
+        "jensen_shannon_divergence": 0.03296981164278148,
+        "occupied_cells_positive": 71,
+        "occupied_cells_negative": 72
+      }
+    },
+    "val": {
+      "centre_lat": {
+        "positive_mean": 3.588430711688601,
+        "negative_mean": 3.4986096355699408,
+        "standardized_mean_difference": 0.07883486358344863,
+        "jensen_shannon_divergence": 0.013868704537963678,
+        "population_stability_index": 0.11225447940573734,
+        "ks_statistic": 0.10353826283344839,
+        "ks_pvalue": 6.483186225752276e-05
+      },
+      "centre_lon": {
+        "positive_mean": 101.29013319879724,
+        "negative_mean": 101.32058051646949,
+        "standardized_mean_difference": -0.03633467552212871,
+        "jensen_shannon_divergence": 0.02046988394229889,
+        "population_stability_index": 0.16866800660917958,
+        "ks_statistic": 0.12450102500827784,
+        "ks_pvalue": 6.503070249426068e-07
+      },
+      "local_hour": {
+        "positive_mean": 12.392686804451511,
+        "negative_mean": 12.044377206253152,
+        "standardized_mean_difference": 0.052518670220728536,
+        "jensen_shannon_divergence": 0.058706024526790274,
+        "population_stability_index": 0.5223612188187253,
+        "ks_statistic": 0.18857506612245423,
+        "ks_pvalue": 2.4887606920350423e-15
+      },
+      "month": {
+        "positive_mean": 1.5659777424483308,
+        "negative_mean": 1.5143721633888048,
+        "standardized_mean_difference": 0.10363092938199336,
+        "jensen_shannon_divergence": 0.0013408366494220348,
+        "population_stability_index": 0.010731619155624114,
+        "ks_statistic": 0.05160557905952584,
+        "ks_pvalue": 0.15072284656903862
+      },
+      "distance_to_study_mask_boundary_km": {
+        "positive_mean": 137.09468932712767,
+        "negative_mean": 122.90359156151683,
+        "standardized_mean_difference": 0.3014478579159349,
+        "jensen_shannon_divergence": 0.018629494208242274,
+        "population_stability_index": 0.15052126719857462,
+        "ks_statistic": 0.20031155120591804,
+        "ks_pvalue": 2.971557464398782e-17
+      },
+      "geographic_grid_2d": {
+        "jensen_shannon_divergence": 0.042064702959325406,
+        "occupied_cells_positive": 58,
+        "occupied_cells_negative": 65
+      }
+    }
+  },
+  "natural_prevalence": {
+    "frames_planned": 240,
+    "frames_built": 235,
+    "grid_cells_eligible": 2475,
+    "positive": 602,
+    "negative": 1873,
+    "prevalence": 0.24323232323232324,
+    "ambiguous_excluded": 343,
+    "failed_frames": 4,
+    "manifest_sha256": "fc592b8c679ed0f81a242c0d37aeabf254090648f9fef07df49f343500dca6a2",
+    "configuration_hash": "eebe246103c5543f1c2b4618d76f91fe678edf14d966b19842c1e02b5928b081",
+    "breakdown": {
+      "by_frame_category": {
+        "active": {
+          "samples": 1553,
+          "positive": 602,
+          "negative": 951,
+          "prevalence": 0.38763683193818416
+        },
+        "zero_recorded": {
+          "samples": 922,
+          "positive": 0,
+          "negative": 922,
+          "prevalence": 0.0
+        }
+      },
+      "by_local_time_period": {
+        "00:00-05:59": {
+          "samples": 496,
+          "positive": 84,
+          "negative": 412,
+          "prevalence": 0.1693548387096774
+        },
+        "06:00-11:59": {
+          "samples": 501,
+          "positive": 87,
+          "negative": 414,
+          "prevalence": 0.17365269461077845
+        },
+        "12:00-17:59": {
+          "samples": 788,
+          "positive": 211,
+          "negative": 577,
+          "prevalence": 0.26776649746192893
+        },
+        "18:00-23:59": {
+          "samples": 690,
+          "positive": 220,
+          "negative": 470,
+          "prevalence": 0.3188405797101449
+        }
+      },
+      "by_month": {
+        "3": {
+          "samples": 1842,
+          "positive": 427,
+          "negative": 1415,
+          "prevalence": 0.23181324647122692
+        },
+        "4": {
+          "samples": 633,
+          "positive": 175,
+          "negative": 458,
+          "prevalence": 0.2764612954186414
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Controlled patch count is 14,561, below the suggested 25,000-40,000 range; independent-frame diversity and per-frame caps were preserved instead of inflating correlated crops.",
+    "Eleven controlled ledger frames and four natural-grid frames were unavailable; all are recorded.",
+    "No reliable coastline/land-ocean mask was available, so none was introduced.",
+    "Storm groups are derived DBSCAN analytical clusters, not official meteorological storm identifiers.",
+    "Overall distance-to-mask-boundary SMD is 0.330 and month SMD is 0.228; geographic-grid JS and latitude/longitude SMDs remain low.",
+    "The largest test-date contribution is 24.4%, below but close to the preregistered 25% dominance limit.",
+    "Natural prevalence is prevalence of MMD-recorded positives under the frozen grid/rule, not true physical lightning prevalence."
+  ],
+  "required_ledgers": {
+    "noaa_object_inventory": "data\\processed\\v2\\full\\noaa_object_inventory.csv",
+    "download_ledger": "data\\processed\\v2\\full\\download_ledger.csv",
+    "excluded_frames": "data\\processed\\v2\\full\\excluded_frames.csv"
+  }
+}
