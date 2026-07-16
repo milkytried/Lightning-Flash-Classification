@@ -728,7 +728,9 @@ def finalize_stage(args: argparse.Namespace) -> None:
     }
     write_json("report/V2_PHASE3_FINAL_COMPARISON.json", {"comparison_rows": rows})
     write_json("report/V2_PHASE3_FINAL_DECISION.json", payload)
-    Path("report/V2_PHASE3_FINAL_COMPARISON.md").write_text("# V2 Phase 3 Final Comparison\n\n" + frame.drop(columns=["confusion_matrix"], errors="ignore").to_markdown(index=False) + "\n", encoding="utf-8")
+    comparison_frame = frame.drop(columns=["confusion_matrix"], errors="ignore")
+    comparison_rows = comparison_frame.fillna("").to_dict(orient="records")
+    Path("report/V2_PHASE3_FINAL_COMPARISON.md").write_text("# V2 Phase 3 Final Comparison\n\n" + markdown_table(comparison_rows) + "\n", encoding="utf-8")
     Path("report/V2_PHASE3_FINAL_DECISION.md").write_text("# V2 Phase 3 Final Decision\n\n" + f"`{decision}`\n\n" + payload["supported_claim"] + "\n", encoding="utf-8")
     print(json.dumps(payload, indent=2))
 
