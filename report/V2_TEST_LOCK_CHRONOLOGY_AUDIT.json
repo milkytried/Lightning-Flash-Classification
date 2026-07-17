@@ -1,0 +1,20 @@
+{
+  "verdict": "CONFIRMED",
+  "commits": {
+    "1758f98": "validation selection",
+    "94dc243": "test unlock",
+    "b8062b8": "final evaluation reports",
+    "72d5b86": "artifact generator"
+  },
+  "git_show": {
+    "1758f98": "1758f9874954479d79ec9dcb271f5faa0a776089 2026-07-16T19:35:03+08:00 Record Version 2 Phase 3 validation selection",
+    "94dc243": "94dc2438bb69f89069f14d8c46d360167425789d 2026-07-16T19:35:55+08:00 Record Version 2 Phase 3 test unlock",
+    "b8062b8": "b8062b824978b60fa34880cd0a2dc6d75b250f41 2026-07-16T19:53:50+08:00 Record Version 2 Phase 3 final evaluation",
+    "72d5b86": "72d5b86895a280850f69bda2702d103a06da4638 2026-07-16T19:56:26+08:00 Add Version 2 Phase 3 artifact generator"
+  },
+  "prediction_file_hashes": {
+    "results/v2/phase3/controlled_test_predictions/small_cnn_seed2026_bce_pos_weight_train_split_none.csv": "061266389fd27e8ddd6a5eb5f2eac1cbe1036082d128f1b4784755523b46f5b8",
+    "results/v2/phase3/natural_prevalence_predictions/small_cnn_seed2026_bce_pos_weight_train_split_none.csv": "2e2874697313c6ebe3731c2d1538dcf2a648119f2484e552ff4524f5c6580549"
+  },
+  "statement": "Validation selection was committed before test unlock; unlock was committed before final reports; thresholds/calibration/model seeds in prediction files match unlock."
+}

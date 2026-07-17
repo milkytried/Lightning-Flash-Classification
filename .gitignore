@@ -80,3 +80,9 @@ _bmad-output/
 
 # Local build/training transcript logs
 /build_log*.txt
+
+# Version 2 generated artifacts
+results/v2/
+models/v2/
+data/processed/v2/
+*_v2_phase3.log

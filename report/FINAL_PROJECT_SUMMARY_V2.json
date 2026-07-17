@@ -1,0 +1,127 @@
+{
+  "selected_model": "small_cnn_seed2026_bce_pos_weight_train_split_none",
+  "decision": "Version 2 demonstrates meaningful image-based discrimination",
+  "controlled": {
+    "accuracy": 0.9555555555555556,
+    "balanced_accuracy": 0.9411487996515611,
+    "brier_score": 0.04458577052486574,
+    "confusion_matrix": {
+      "fn": 69,
+      "fp": 53,
+      "tn": 1934,
+      "tp": 689
+    },
+    "expected_calibration_error": 0.04911947802126485,
+    "f1": 0.9186666666666666,
+    "false_discovery_ratio_far": 0.07142857142857142,
+    "false_positive_rate_fpr": 0.026673376950176145,
+    "fn": 69,
+    "fp": 53,
+    "hss": 0.8880950121431732,
+    "label_count": {
+      "negative": 1987,
+      "positive": 758
+    },
+    "mcc": 0.8881906695913191,
+    "pr_auc": 0.9662097000276416,
+    "precision": 0.9285714285714286,
+    "prediction_csv": "results\\v2\\phase3\\controlled_test_predictions\\small_cnn_seed2026_bce_pos_weight_train_split_none.csv",
+    "prediction_sha256": "061266389fd27e8ddd6a5eb5f2eac1cbe1036082d128f1b4784755523b46f5b8",
+    "recall_pod": 0.9089709762532981,
+    "reported_metrics_match": true,
+    "roc_auc": 0.9835381164906988,
+    "run_name": "small_cnn_seed2026_bce_pos_weight_train_split_none",
+    "sample_count": 2745,
+    "specificity": 0.9733266230498239,
+    "split": "controlled_test",
+    "threshold": 0.8307269811630249,
+    "tn": 1934,
+    "tp": 689,
+    "tss": 0.882297599303122
+  },
+  "natural": {
+    "accuracy": 0.9111111111111111,
+    "balanced_accuracy": 0.8370022154306787,
+    "brier_score": 0.059808115765027765,
+    "confusion_matrix": {
+      "fn": 185,
+      "fp": 35,
+      "tn": 1838,
+      "tp": 417
+    },
+    "expected_calibration_error": 0.019015041069196846,
+    "f1": 0.791271347248577,
+    "false_discovery_ratio_far": 0.07743362831858407,
+    "false_positive_rate_fpr": 0.01868659903897491,
+    "fn": 185,
+    "fp": 35,
+    "hss": 0.7362483421670359,
+    "label_count": {
+      "negative": 1873,
+      "positive": 602
+    },
+    "mcc": 0.7484498868973843,
+    "pr_auc": 0.8962217300137428,
+    "precision": 0.922566371681416,
+    "prediction_csv": "results\\v2\\phase3\\natural_prevalence_predictions\\small_cnn_seed2026_bce_pos_weight_train_split_none.csv",
+    "prediction_sha256": "2e2874697313c6ebe3731c2d1538dcf2a648119f2484e552ff4524f5c6580549",
+    "recall_pod": 0.6926910299003323,
+    "reported_metrics_match": true,
+    "roc_auc": 0.9481590994957189,
+    "run_name": "small_cnn_seed2026_bce_pos_weight_train_split_none",
+    "sample_count": 2475,
+    "specificity": 0.981313400961025,
+    "split": "natural_prevalence",
+    "threshold": 0.8307269811630249,
+    "tn": 1838,
+    "tp": 417,
+    "tss": 0.6740044308613573
+  },
+  "best_baselines": {
+    "b13_min_random_forest": {
+      "accuracy": 0.8888888888888888,
+      "balanced_accuracy": 0.8596039162206055,
+      "precision": 0.8015978695073236,
+      "recall": 0.7941952506596306,
+      "f1": 0.7978793903247183,
+      "mcc": 0.7212825065475673,
+      "confusion_matrix": [
+        [
+          1838,
+          149
+        ],
+        [
+          156,
+          602
+        ]
+      ],
+      "brier_score": 0.0914215904705169,
+      "calibration_error": 0.07871234842920119,
+      "roc_auc": 0.9453761454732807,
+      "pr_auc": 0.8542203934251091
+    },
+    "latlon_time_month_random_forest": {
+      "accuracy": 0.7300546448087432,
+      "balanced_accuracy": 0.7429548662613052,
+      "precision": 0.5073720728534259,
+      "recall": 0.7717678100263852,
+      "f1": 0.6122448979591837,
+      "mcc": 0.4401522729196989,
+      "confusion_matrix": [
+        [
+          1419,
+          568
+        ],
+        [
+          173,
+          585
+        ]
+      ],
+      "brier_score": 0.15705147451954568,
+      "calibration_error": 0.10255340702926433,
+      "roc_auc": 0.8169745828093691,
+      "pr_auc": 0.64984233307639
+    }
+  },
+  "exact_claim": "Version 2 demonstrates meaningful image-based discrimination of MMD-recorded cloud-to-ground lightning associations from Himawari-9 image patches within a conservative empirical Peninsular Malaysia study region."
+}
