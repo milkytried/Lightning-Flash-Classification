@@ -86,3 +86,7 @@ results/v2/
 models/v2/
 data/processed/v2/
 *_v2_phase3.log
+
+# Local report figure outputs
+figures/*.png
+figures/*.npz

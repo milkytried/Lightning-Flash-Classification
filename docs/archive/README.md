@@ -1,11 +1,26 @@
-# Superseded prototype archive
+# Superseded experiment archive
 
-These files preserve the audit trail for the earlier 11-PNG Himawari-8 frozen-backbone prototype and related metadata experiments. They are historical snapshots, not current reproduction instructions. The final report supersedes them with the aligned Himawari-9 / MMD run: 41,168 balanced patches; train/validation/test counts 33,226 / 3,324 / 4,618; threshold 0.51; test accuracy 0.9095; precision 0.8742; recall/POD 0.9567; F1 0.9136; ROC-AUC 0.9681; FAR 0.126; CSI 0.841; TSS 0.819; HSS 0.819.
+These files preserve historical status notes for earlier prototypes and failed/intermediate training attempts. They are **not** current reproduction instructions and must not be cited as the final FYP result.
 
-- `FINAL_AUDIT.md` — audit of the 11-PNG prototype and its then-local artifacts.
-- `FINAL_PROJECT_SUMMARY.md` — superseded prototype project summary.
-- `FRESH_TRAINING_STATUS.md` — status snapshot for the prototype training run.
-- `FYP_VIVA_SUMMARY.md` — superseded viva notes for the prototype.
+The current result is documented in the root `README.md`, `docs/version2_model_card.md`, `docs/version2_dataset_card.md`, and `report/FINAL_PROJECT_SUMMARY_V2.md`.
+
+Current final label: **Version 2 — Frozen Corrected Scientific Experiment**.
+
+Current final model: compact CNN trained from scratch on Himawari-9 B08/B13/B15 patches, 102,017 trainable parameters, selected run `small_cnn_seed2026_bce_pos_weight_train_split_none`.
+
+Current final test results:
+
+- Controlled test: accuracy 0.9556, ROC-AUC 0.9835, PR-AUC 0.9662.
+- Natural-prevalence test: accuracy 0.9111, ROC-AUC 0.9482, PR-AUC 0.8962.
+
+Archived files:
+
+- `FINAL_AUDIT.md` — older Version 1/prototype audit material.
+- `FINAL_PROJECT_SUMMARY.md` — superseded project summary.
+- `FRESH_TRAINING_STATUS.md` — historical training status snapshot.
+- `FYP_VIVA_SUMMARY.md` — superseded viva notes.
 - `PANEL_QA_PREP.md` — superseded question-and-answer preparation.
-- `SATELLITE_MODEL_FRESH_REPORT.md` — detailed prototype model report.
-- `TRAINING_FAILURE_DIAGNOSIS.md` — diagnosis preceding the prototype’s head-only retraining.
+- `SATELLITE_MODEL_FRESH_REPORT.md` — historical satellite model report.
+- `TRAINING_FAILURE_DIAGNOSIS.md` — historical training-failure diagnosis.
+
+Version 1 remains useful only as a reproducible diagnostic baseline. It is scientifically limited by geographic/sampling bias, active-frame-only selection, and no-data contamination discovered during audit.

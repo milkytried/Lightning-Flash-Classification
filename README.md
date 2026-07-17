@@ -1,117 +1,115 @@
 # Lightning flash classification from Himawari-9 imagery
 
-This repository contains the code, audit records, and report support material for a final-year project on cloud-to-ground lightning association from Himawari-9 infrared image patches over a conservative Peninsular Malaysia study region.
+This repository contains the final code and audit trail for **Version 2 — Frozen Corrected Scientific Experiment**, a final-year project on satellite-image classification of Malaysian Meteorological Department (MMD) cloud-to-ground lightning associations from Himawari-9 AHI infrared patches.
 
-The project has two clearly separated experiments:
+**Bounded claim:** the final system demonstrates meaningful image-based discrimination of MMD-recorded cloud-to-ground lightning associations from Himawari-9 image patches within a conservative empirical Peninsular Malaysia study region. It is **not** an operational warning system, not a real-time nowcaster, and not proof of physical lightning absence where MMD recorded no strike.
 
-- **Version 1 — Frozen Reproducible Diagnostic Experiment**: an aligned balanced-patch prototype that is computationally reproducible, but scientifically limited by sampling shortcuts discovered during audit.
-- **Version 2 — Frozen Corrected Scientific Experiment**: the corrected, preregistered scientific experiment and the main result of this repository.
+## Final Model
 
-Version 2 is the headline experiment. Version 1 is retained for comparison, audit history, and final-report discussion only.
+The final model is a compact CNN trained from scratch. It is **not** the earlier frozen ResNet-50 and it is **not** a metadata MLP.
 
-## Final Claim
+| Item | Final Version 2 value |
+|---|---|
+| Selected run | `small_cnn_seed2026_bce_pos_weight_train_split_none` |
+| Checkpoint | `models/v2/phase3/small_cnn_seed2026_bce_pos_weight_train_split_none_best.pth` |
+| Checkpoint SHA-256 | `888696cb7f6d1543875795fca0deec2aaf5b0e54157692633b619e17f216ce1a` |
+| Architecture | 3 convolution blocks, batch normalization, global pooling, dropout, 64-unit hidden layer, 1-logit output |
+| Parameters | 102,017 total; all trainable |
+| Input | 64x64 RGB PNG patch where channels encode Himawari-9 AHI B08/B13/B15 |
+| Loss | `BCEWithLogitsLoss(pos_weight=...)`, with `pos_weight` calculated from the training split |
+| Optimizer | AdamW, learning rate `1e-3`, weight decay `1e-4` |
+| Scheduler | ReduceLROnPlateau on validation PR-AUC, factor `0.5`, patience `3` |
+| Training | max 50 epochs, early stopping patience 7; selected checkpoint at epoch 25 of a 32-epoch run |
+| Threshold | `0.8307269811630249`, selected on validation F1 and then frozen |
+| Calibration | validation-only temperature scaling (`T = 1.0706590414047241`) reported separately; class decisions use the frozen threshold |
 
-Version 2 supports the following bounded conclusion:
+The small CNN was selected using validation performance before test unlock. It was stable across seeds and outperformed the frozen ResNet-50 candidate family and simple baselines on validation PR-AUC.
 
-> Version 2 demonstrates meaningful image-based discrimination of MMD-recorded cloud-to-ground lightning associations from Himawari-9 image patches within a conservative empirical Peninsular Malaysia study region.
+## Corrected Version 2 Data Pipeline
 
-It is **not** an operational warning system, not a real-time nowcaster, and not evidence of lightning absence outside the sampled design. Version 2 decisions must not be changed using Version 2 test outcomes.
+Version 2 replaced the earlier balanced prototype with a corrected sampling design:
 
-## Version 2 Selected Model
+- Himawari-9 AHI Level-1b imagery, bands B08/B13/B15, converted into 64x64 patches.
+- Conservative empirical Peninsular Malaysia study mask rather than a broad Malaysia-wide claim.
+- Positive labels from MMD-recorded cloud-to-ground strike associations.
+- Negative labels require no MMD-recorded strike in the full crop neighbourhood under the frozen temporal exclusion window `[t-20m, t+30m)`.
+- Active and zero-recorded frames are both included.
+- Train/validation/test are date- and storm-disjoint chronological splits.
+- No-data/scan-edge patches are rejected.
+- A separate natural-prevalence test keeps the observed class imbalance instead of forcing 1:1 balancing.
 
-The frozen selected model is:
+Dataset composition from the frozen manifests:
 
-- Run: `small_cnn_seed2026_bce_pos_weight_train_split_none`
-- Checkpoint: `models/v2/phase3/small_cnn_seed2026_bce_pos_weight_train_split_none_best.pth`
-- Checkpoint SHA-256: `888696cb7f6d1543875795fca0deec2aaf5b0e54157692633b619e17f216ce1a`
-- Decision threshold: `0.8307269811630249`, selected on validation only
-- Calibration: validation temperature scaling, `1.0706590414047241`
-- Architecture: small CNN trained from scratch on Version 2 patches
+| Split | Rows | Negatives | Positives | Positive base rate | Date range |
+|---|---:|---:|---:|---:|---|
+| Train | 9,204 | 6,035 | 3,169 | 0.3443 | 2023-01-01 to 2024-04-01 |
+| Validation | 2,612 | 1,983 | 629 | 0.2408 | 2025-01-01 to 2025-02-28 |
+| Controlled test | 2,745 | 1,987 | 758 | 0.2761 | 2025-03-01 to 2025-04-01 |
+| Natural-prevalence test | 2,475 | 1,873 | 602 | 0.2432 | 2025-03-01 to 2025-04-01 |
 
-The checkpoint, datasets, prediction CSVs, logs, and figures are generated artifacts and are intentionally gitignored.
+Raw MMD data, downloaded Himawari files, derived patches, checkpoints, logs, and generated figures are intentionally not committed.
 
-## Headline Results
+## Final Results
 
-| Evaluation | Accuracy | ROC-AUC | PR-AUC | Precision | Recall / POD | FAR / FDR | Confusion matrix |
-|---|---:|---:|---:|---:|---:|---:|---|
-| Controlled balanced test | 0.9556 | 0.9835 | 0.9662 | 0.9286 | 0.9090 | 0.0714 | TN 1934, FP 53, FN 69, TP 689 |
-| Natural-prevalence evaluation | 0.9111 | 0.9482 | 0.8962 | 0.9226 | 0.6927 | 0.0774 | TN 1838, FP 35, FN 185, TP 417 |
+All metrics below are recomputed from the frozen prediction artifacts at the validation-selected threshold `0.8307269811630249`.
 
-Metric naming is explicit: FAR here means `FP / (TP + FP)`, also called false discovery ratio. FPR means `FP / (FP + TN)`. The two are not interchangeable.
+| Evaluation | Rows | Accuracy | ROC-AUC | PR-AUC | Precision | Recall / POD | FAR / FDR | Confusion matrix |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| Controlled test | 2,745 | 0.9556 | 0.9835 | 0.9662 | 0.9286 | 0.9090 | 0.0714 | TN 1934, FP 53, FN 69, TP 689 |
+| Natural-prevalence test | 2,475 | 0.9111 | 0.9482 | 0.8962 | 0.9226 | 0.6927 | 0.0774 | TN 1838, FP 35, FN 185, TP 417 |
 
-## Version 1 Versus Version 2
+The natural-prevalence result is deliberately more conservative. Precision remains high (`0.9226`) and false alarms are low (`35` FP out of `1,873` recorded negatives), but recall drops from `0.9090` on the controlled test to `0.6927` under natural prevalence. That drop is part of the scientific result and should not be hidden.
 
-| Experiment | Status | Main result | Scientific interpretation |
-|---|---|---|---|
-| Version 1 — Frozen Reproducible Diagnostic Experiment | Frozen and retained | 90.95% accuracy, 0.9681 ROC-AUC on the frozen balanced patch dataset | Computationally authentic, but sampling shortcuts mean it is a diagnostic benchmark rather than operational lightning-detection evidence. |
-| Version 2 — Frozen Corrected Scientific Experiment | Final scientific result | 95.56% controlled accuracy, 0.9835 controlled ROC-AUC; 91.11% natural accuracy, 0.9482 natural ROC-AUC | Meaningful bounded image-based discrimination within the corrected empirical design. |
+Metric naming is explicit: FAR here means `FP / (TP + FP)`, also called false discovery ratio. FPR means `FP / (FP + TN)`. They are not interchangeable.
 
-Recommended wording for Version 1 is preserved:
+## Version 1 Diagnostic Baseline
 
-> On the frozen Version 1 balanced patch dataset, the saved model reproducibly achieved 90.95% accuracy and 0.9681 ROC-AUC. Subsequent auditing identified geographical and sampling shortcuts, so these results are retained as a diagnostic benchmark rather than operational lightning-detection evidence.
+Version 1 is retained only as **Version 1 — Frozen Reproducible Diagnostic Experiment**. It used a frozen ResNet-50 and reproducibly achieved about `0.9095` accuracy and `0.9681` ROC-AUC on its cleaned balanced patch dataset. Subsequent audits found scientific limitations, including geographic/sampling shortcuts, active-frame-only selection, centre-only negative exclusion, no-data contamination in earlier negatives, and no natural-prevalence evaluation. Version 1 is therefore an audit baseline, not the final FYP result.
 
-## Model Comparison Evidence
-
-The final Version 2 model was selected before test unlock using validation PR-AUC. The small CNN was stable across seeds and clearly exceeded tabular baselines:
-
-| Model family | Validation PR-AUC evidence |
-|---|---:|
-| Small CNN, seeds 2024/2025/2026 | 0.9550 / 0.9579 / 0.9588 |
-| ResNet-18, seeds 2024/2025/2026 | 0.8614 / 0.8611 / 0.8641 |
-| B13-only random forest baseline | 0.8542 |
-| Geography/time random forest baseline | 0.6498 PR-AUC, 0.8170 ROC-AUC |
-
-The selected small CNN result is therefore not a single lucky seed and is not explained by geography/time metadata alone.
-
-## Repository Map
-
-Key source files:
-
-- `src/build_v2_dataset.py` and related Version 2 utilities: corrected dataset construction.
-- `src/v2_phase3_train.py`: preregistered Version 2 Phase 3 training, validation selection, test unlock, and final reporting.
-- `src/v2_inference.py`: frozen Version 2 inference entry point for one patch.
-- `src/v2_final_repro_audit.py`: independent reproducibility audit from saved prediction CSVs.
-- `src/v2_final_figures.py`: final figure generation from frozen artifacts.
-- `tests/`: offline-safe tests, including the Version 2 inference consistency test.
-
-Key documentation:
-
-- `docs/version2_experiment_provenance.md`: hashes, commits, commands, and final selected artifact provenance.
-- `docs/version2_model_card.md`: model card for the selected Version 2 model.
-- `docs/version2_dataset_card.md`: dataset card for the corrected Version 2 dataset.
-- `docs/version2_figure_provenance.md`: final figure-generation provenance and figure hashes.
-- `docs/repository_artifact_classification.md`: what is current, frozen, legacy, generated, or private.
-- `report/FINAL_PROJECT_SUMMARY_V2.md`: final project summary.
-- `report/V2_FINAL_REPRODUCIBILITY_AUDIT.md`: independent metric recomputation audit.
-- `report/V2_TEST_LOCK_CHRONOLOGY_AUDIT.md`: audit of validation selection before test unlock.
-- `report/FINAL_DEFENCE_QA_V2.md`: viva/defence question-and-answer preparation.
+Older metadata experiments are also not headline results. Apparent perfect metadata scores are consistent with label leakage because fields such as amplitude and strike type only exist once a strike has been recorded. They are preserved, if at all, as historical experiments and are not used as FYP evidence.
 
 ## Reproducibility
 
-A fresh clone contains code, tests, and documentation. It does not contain licensed/private MMD lightning CSVs, downloaded Himawari files, derived patches, checkpoints, logs, or generated result figures.
-
-With the required local data/artifacts available, the important non-training verification commands are:
+The compact verification path assumes the local, gitignored V2 artifacts are present:
 
 ```powershell
+# Recompute final metrics from saved prediction CSVs
 ..\.venv\Scripts\python.exe src\v2_final_repro_audit.py
-..\.venv\Scripts\python.exe src\v2_inference.py <path-to-64x64-v2-patch.png>
+
+# Run official inference on one 64x64 V2 patch
+..\.venv\Scripts\python.exe src\v2_inference.py <path-to-patch.png>
+
+# Regenerate report figures from the checkpoint and manifests
+..\.venv\Scripts\python.exe figures\make_figures.py
+
+# Run tests
 ..\.venv\Scripts\python.exe -m pytest
 ```
 
-The official inference path loads the frozen selected checkpoint, verifies its SHA-256 by default, applies the committed validation temperature and threshold, and reports both raw and calibrated probabilities.
+Key provenance records:
 
-## Data And Artifact Policy
+- `docs/version2_experiment_provenance.md`
+- `docs/version2_model_card.md`
+- `docs/version2_dataset_card.md`
+- `docs/version2_figure_provenance.md`
+- `report/V2_FINAL_REPRODUCIBILITY_AUDIT.md`
+- `report/V2_TEST_LOCK_CHRONOLOGY_AUDIT.md`
+- `report/FINAL_PROJECT_SUMMARY_V2.md`
 
-Raw MMD CSVs are licensed research data and are not redistributed. Himawari imagery is public archive data, but downloaded HSD files and derived patches are large generated artifacts. The following are intentionally uncommitted:
+Generated outputs under `data/`, `models/`, `results/v2/`, `figures/*.png`, `logs/`, and `*.log` are excluded from git. This keeps the repository lightweight while preserving hashes and provenance for local frozen artifacts.
 
-- `data/`
-- `models/`
-- `results/v2/`
-- `logs/`
-- `*.log`
+## Repository Layout
 
-Committed reports include hashes and provenance for frozen local artifacts so the results can be audited without committing the large files themselves.
+```text
+src/        Version 2 builders, training/evaluation utilities, inference, and audits
+tests/      Offline-safe regression tests
+docs/       Current V2 model/dataset/provenance cards and historical archive
+report/     Final V2 reports and phase summaries
+figures/    Regenerable report-figure script and local PNG outputs
+```
+
+Historical reports in `docs/archive/` document superseded experiments and must not be read as current reproduction instructions.
 
 ## License And Attribution
 
-The code is released under the MIT License. MMD data remain subject to their provider's terms. Himawari imagery should be attributed to the Japan Meteorological Agency and the NOAA public archive used for access.
+The code is released under the MIT License. MMD lightning data remain subject to their provider's terms and are not redistributed. Himawari imagery should be attributed to the Japan Meteorological Agency and the NOAA public archive used for access.
