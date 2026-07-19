@@ -1,3 +1,5 @@
+> ⚠️ SUPERSEDED — retained for provenance only. Not the final result. See README.md and report/ for Version 2.
+
 # Superseded experiment archive
 
 These files preserve historical status notes for earlier prototypes and failed/intermediate training attempts. They are **not** current reproduction instructions and must not be cited as the final FYP result.

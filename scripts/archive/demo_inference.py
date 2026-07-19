@@ -1,3 +1,4 @@
+# ⚠️ SUPERSEDED — retained for provenance only. Not the final result. See README.md and report/ for Version 2.
 import os
 import torch
 from pathlib import Path

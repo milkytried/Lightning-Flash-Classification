@@ -1,3 +1,4 @@
+# ⚠️ SUPERSEDED — retained for provenance only. Not the final result. See README.md and report/ for Version 2.
 """Archived orchestration script for the earlier 11-PNG Himawari-8 prototype.
 
 It assembled prototype metadata, evaluation, and a report. The final aligned

@@ -1,3 +1,4 @@
+# ⚠️ SUPERSEDED — retained for provenance only. Not the final result. See README.md and report/ for Version 2.
 """Archived metadata generator for the earlier 11-PNG Himawari-8 prototype.
 
 Its artifact describes the baseline checkpoint and is superseded by the final
