@@ -1,5 +1,7 @@
 # Lightning flash classification from Himawari-9 imagery
 
+**Status:** Version 2 is final. Last updated: 2026-07-19.
+
 This repository contains the final code and audit trail for **Version 2 — Frozen Corrected Scientific Experiment**, a final-year project on satellite-image classification of Malaysian Meteorological Department (MMD) cloud-to-ground lightning associations from Himawari-9 AHI infrared patches.
 
 **Bounded claim:** the final system demonstrates meaningful image-based discrimination of MMD-recorded cloud-to-ground lightning associations from Himawari-9 image patches within a conservative empirical Peninsular Malaysia study region. It is **not** an operational warning system, not a real-time nowcaster, and not proof of physical lightning absence where MMD recorded no strike.

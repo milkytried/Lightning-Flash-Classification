@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import hashlib
@@ -53,7 +53,7 @@ def main():
     # V1/V2 comparison
     path=out/'version1_vs_version2_comparison.png'
     fig, ax=plt.subplots(figsize=(7,4)); labels=['V1 diagnostic\nROC-AUC','V2 controlled\nROC-AUC','V2 natural\nROC-AUC']; vals=[0.9681, final['best_neural_controlled_test']['roc_auc'], next(x for x in natural['results'] if x['run_name']==selected)['metrics_at_validation_threshold']['roc_auc']]
-    ax.bar(labels, vals, color=['#9ecae1','#31a354','#74c476']); ax.set_ylim(0,1); ax.set_ylabel('ROC-AUC'); ax.set_title('Version 1 diagnostic vs Version 2 frozen result')
+    ax.bar(labels, vals, color=['#9ecae1','#31a354','#74c476']); ax.set_ylim(0,1); ax.set_ylabel('ROC-AUC'); ax.set_title('Version 1 diagnostic vs Version 2 final result')
     for i,v in enumerate(vals): ax.text(i,v+0.01,f'{v:.3f}',ha='center')
     fig.tight_layout(); fig.savefig(path,dpi=300); plt.close(fig); add(path,'Version 1 retained as diagnostic benchmark; Version 2 is the corrected scientific experiment.')
     # validation seed bars

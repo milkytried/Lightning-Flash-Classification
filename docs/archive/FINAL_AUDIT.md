@@ -1,3 +1,5 @@
+> ⚠️ SUPERSEDED — retained for provenance only. Not the final result. See README.md and report/ for Version 2.
+
 > **Archive notice:** This document describes the artifact audit for the earlier 11-PNG Himawari-8 frozen-backbone prototype. It is **SUPERSEDED by the final FYP report** and is retained only as an audit trail; all path-existence statements below are historical snapshots and may refer to moved or gitignored artifacts. The current aligned Himawari-9 result uses 41,168 balanced patches (33,226 / 3,324 / 4,618), threshold 0.51, and achieves accuracy 0.9095, precision 0.8742, recall/POD 0.9567, F1 0.9136, ROC-AUC 0.9681, FAR 0.126, CSI 0.841, TSS 0.819, and HSS 0.819.
 
 # FINAL AUDIT REPORT - HIMAWARI-8 SATELLITE CNN
